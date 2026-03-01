@@ -1,0 +1,202 @@
+<!DOCTYPE html><html lang="en" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>基于位运算的无分支门控注入与变体探究 | 赛博勒克斯π - 环形世界</title><meta name="author" content="Erriapus."><meta name="copyright" content="Erriapus."><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="Date: 2026-02-28Author: ErrialTags: #UnityDOTS #HighPerformance #Branchless #16KB-L1    序最近在设计高性能计算时遇到了性能需求，需要尽可能少的产生分支预测。虽然函数库 Unity.Mathematics，其内部提供了math.select等相关高性能计算的API接口。问题在于这些API即使反编译看起来也很晦涩">
+<meta property="og:type" content="article">
+<meta property="og:title" content="基于位运算的无分支门控注入与变体探究">
+<meta property="og:url" content="https://sleipnir3.github.io/Errial.github.io/2026/03/01/Blog_Draft_Branchless_Architecture/index.html">
+<meta property="og:site_name" content="赛博勒克斯π - 环形世界">
+<meta property="og:description" content="Date: 2026-02-28Author: ErrialTags: #UnityDOTS #HighPerformance #Branchless #16KB-L1    序最近在设计高性能计算时遇到了性能需求，需要尽可能少的产生分支预测。虽然函数库 Unity.Mathematics，其内部提供了math.select等相关高性能计算的API接口。问题在于这些API即使反编译看起来也很晦涩">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://sleipnir3.github.io/Errial.github.io/img/butterfly-icon.png">
+<meta property="article:published_time" content="2026-02-28T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-03-01T13:59:08.820Z">
+<meta property="article:author" content="Erriapus.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://sleipnir3.github.io/Errial.github.io/img/butterfly-icon.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "基于位运算的无分支门控注入与变体探究",
+  "url": "https://sleipnir3.github.io/Errial.github.io/2026/03/01/Blog_Draft_Branchless_Architecture/",
+  "image": "https://sleipnir3.github.io/Errial.github.io/img/butterfly-icon.png",
+  "datePublished": "2026-02-28T16:00:00.000Z",
+  "dateModified": "2026-03-01T13:59:08.820Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Erriapus.",
+      "url": "https://Sleipnir3.github.io/Errial.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/Errial.github.io/img/favicon.png"><link rel="canonical" href="https://sleipnir3.github.io/Errial.github.io/2026/03/01/Blog_Draft_Branchless_Architecture/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/Errial.github.io/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/Errial.github.io/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: 'Copy Successful',
+    error: 'Copy Failed',
+    noSupport: 'Browser Not Supported'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: 'Just now',
+    min: 'minutes ago',
+    hour: 'hours ago',
+    day: 'days ago',
+    month: 'months ago'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: 'Load More'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '基于位运算的无分支门控注入与变体探究',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><!-- hexo injector head_end start --><link rel="stylesheet" href="https://npm.elemecdn.com/hexo-butterfly-categories-card@1.0.0/lib/categorybar.css"><!-- hexo injector head_end end --><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/Errial.github.io/"><span class="site-name">赛博勒克斯π - 环形世界</span></a><a class="nav-page-title" href="/Errial.github.io/"><span class="site-name">基于位运算的无分支门控注入与变体探究</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  Back to Home</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">基于位运算的无分支门控注入与变体探究</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">Created</span><time class="post-meta-date-created" datetime="2026-02-28T16:00:00.000Z" title="Created 2026-03-01 00:00:00">2026-03-01</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">Updated</span><time class="post-meta-date-updated" datetime="2026-03-01T13:59:08.820Z" title="Updated 2026-03-01 21:59:08">2026-03-01</time></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">Post Views:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p><strong>Date</strong>: 2026-02-28<br><strong>Author</strong>: Errial<br><strong>Tags</strong>: #UnityDOTS #HighPerformance #Branchless #16KB-L1  </p>
+</blockquote>
+<h2 id="序"><a href="#序" class="headerlink" title="序"></a>序</h2><p>最近在设计高性能计算时遇到了性能需求，需要尽可能少的产生分支预测。<br>虽然函数库 <em>Unity.Mathematics</em>，其内部提供了<em>math.select</em>等相关高性能计算的API接口。<br>问题在于这些API即使反编译看起来也很晦涩难懂，所以自己实现了一版的门控逻辑。</p>
+<h2 id="一、-基本逻辑与实现"><a href="#一、-基本逻辑与实现" class="headerlink" title="一、 基本逻辑与实现"></a>一、 基本逻辑与实现</h2><p><code> uint gate = (uint)(((long)rawValue - (long)(mask + 1)) &gt;&gt; 63);</code><br>是的，代码只有一行。其实非常的简单，但是涉及到的知识点较多，我们逐一分析。</p>
+<h4 id="基本原理与mask-1-？"><a href="#基本原理与mask-1-？" class="headerlink" title="基本原理与mask + 1 ？"></a>基本原理与mask + 1 ？</h4><p><em>rawValue</em>是传入的原始值，<em>Mask</em>是标准模。理论上来说如果说一个数值大于<em>Mask</em>来说的话即非法。<br>所以方案就跃然纸上，使得两者相减，必然会获得三个数学结果<br><strong>大于0，小于0，等于0</strong>。<br><code>mask + 1</code>的意义就在于是否需要设计包含0的情况，因为0在shift后会产生“关门”的结果。<br>这里我们需要包含0，故而将mask扩大1，使得rawValue与mask相等时也会产生负数。</p>
+<h4 id="逻辑运算与计算运算以及掩码扩散机制"><a href="#逻辑运算与计算运算以及掩码扩散机制" class="headerlink" title="逻辑运算与计算运算以及掩码扩散机制"></a>逻辑运算与计算运算以及掩码扩散机制</h4><p>注意，笔者在进行算数相减前先做了一次类型转换，强制转为了<strong>long</strong>。注意，这是<strong>必要的</strong>。<br>显而易见，如果原类型是无符号类型，我们是无法获得负数的，此时执行的是纯粹的逻辑运算。<br>而如果是有符号类型，对于存在符号位的情况下，会进行运算计算，继而产生我们所说的掩码扩散机制。</p>
+<p>将结果向右移<code>sizeof(type) - 1</code>位数。<br>如果读者的计算机基础尚可的话，就会明白，此时得到的结果如下:</p>
+<ul>
+<li>预期类型1：0xFFFF….FFFF</li>
+<li>预期类型2：0x0000….0000</li>
+</ul>
+<h4 id="门控的实现"><a href="#门控的实现" class="headerlink" title="门控的实现"></a>门控的实现</h4><p>通过上面的计算，我们得到了一个有符号类型的二进制数<code>effectiveMask</code>，全为1或者全为0。此时的逻辑已经接近于<em>bool</em>类型了。<br>然后在后续的计算中，就可以使rawValue &amp; effectiveMask。来控制写入是否生效。</p>
+<h2 id="二、-双向选择网关-The-Select-MUX-Gate"><a href="#二、-双向选择网关-The-Select-MUX-Gate" class="headerlink" title="二、 双向选择网关 (The Select&#x2F;MUX Gate)"></a>二、 双向选择网关 (The Select&#x2F;MUX Gate)</h2><p>基于上述的基本理论，我们可以利用我们的计算原型<code>gate</code>做更多的事情。</p>
+<ul>
+<li>代码实现：<code>uint result = (A &amp; gate) | (B &amp; ~gate);</code></li>
+<li>物理解析：  <ul>
+<li>当 gate 为全 1：结果是 (A &amp; 11..1) | (B &amp; 00..0) -&gt; A。  </li>
+<li>当 gate 为全 0：结果是 (A &amp; 00..0) | (B &amp; 11..1) -&gt; B。</li>
+</ul>
+</li>
+</ul>
+<p>基于上述功能，可以快捷的实现A或者B的选择。</p>
+<hr>
+<h2 id="三、-增量注入网关-The-Accumulator-Gate"><a href="#三、-增量注入网关-The-Accumulator-Gate" class="headerlink" title="三、 增量注入网关 (The Accumulator Gate)"></a>三、 增量注入网关 (The Accumulator Gate)</h2><p>一种快速的增量式写法  </p>
+<ul>
+<li>代码实现：<code>damage += (10 &amp; gate);</code>. </li>
+<li>解释：将“逻辑判断”转化为“加法中的零因子”。</li>
+</ul>
+<hr>
+<p><em>© 2026 Continuum-16KB Project</em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>Author: </span><span class="post-copyright-info"><a href="https://Sleipnir3.github.io/Errial.github.io">Erriapus.</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>Link: </span><span class="post-copyright-info"><a href="https://sleipnir3.github.io/Errial.github.io/2026/03/01/Blog_Draft_Branchless_Architecture/">https://sleipnir3.github.io/Errial.github.io/2026/03/01/Blog_Draft_Branchless_Architecture/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>Copyright Notice: </span><span class="post-copyright-info">All articles on this blog are licensed under <a target="_blank" rel="noopener" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a> unless otherwise stated.</span></div></div><div class="tag_share"><div class="post-share"><div class="social-share" data-image="/Errial.github.io/img/butterfly-icon.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"></nav></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/Errial.github.io/img/butterfly-icon.png" onerror="this.onerror=null;this.src='/Errial.github.io/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Erriapus.</div><div class="author-info-description"></div><div class="site-data"><a href="/Errial.github.io/archives/"><div class="headline">Articles</div><div class="length-num">1</div></a><a href="/Errial.github.io/tags/"><div class="headline">Tags</div><div class="length-num">0</div></a><a href="/Errial.github.io/categories/"><div class="headline">Categories</div><div class="length-num">0</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/Sleipnir3"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/Sleipnir3" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>Announcement</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>Contents</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%BA%8F"><span class="toc-number">1.</span> <span class="toc-text">序</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81-%E5%9F%BA%E6%9C%AC%E9%80%BB%E8%BE%91%E4%B8%8E%E5%AE%9E%E7%8E%B0"><span class="toc-number">2.</span> <span class="toc-text">一、 基本逻辑与实现</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%9F%BA%E6%9C%AC%E5%8E%9F%E7%90%86%E4%B8%8Emask-1-%EF%BC%9F"><span class="toc-number">2.1.</span> <span class="toc-text">基本原理与mask + 1 ？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E9%80%BB%E8%BE%91%E8%BF%90%E7%AE%97%E4%B8%8E%E8%AE%A1%E7%AE%97%E8%BF%90%E7%AE%97%E4%BB%A5%E5%8F%8A%E6%8E%A9%E7%A0%81%E6%89%A9%E6%95%A3%E6%9C%BA%E5%88%B6"><span class="toc-number">2.2.</span> <span class="toc-text">逻辑运算与计算运算以及掩码扩散机制</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E9%97%A8%E6%8E%A7%E7%9A%84%E5%AE%9E%E7%8E%B0"><span class="toc-number">2.3.</span> <span class="toc-text">门控的实现</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81-%E5%8F%8C%E5%90%91%E9%80%89%E6%8B%A9%E7%BD%91%E5%85%B3-The-Select-MUX-Gate"><span class="toc-number">3.</span> <span class="toc-text">二、 双向选择网关 (The Select&#x2F;MUX Gate)</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81-%E5%A2%9E%E9%87%8F%E6%B3%A8%E5%85%A5%E7%BD%91%E5%85%B3-The-Accumulator-Gate"><span class="toc-number">4.</span> <span class="toc-text">三、 增量注入网关 (The Accumulator Gate)</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>Recent Posts</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/Errial.github.io/2026/03/01/Blog_Draft_Branchless_Architecture/" title="基于位运算的无分支门控注入与变体探究">基于位运算的无分支门控注入与变体探究</a><time datetime="2026-02-28T16:00:00.000Z" title="Created 2026-03-01 00:00:00">2026-03-01</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Erriapus.</span><span class="framework-info"><span>Framework </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>Theme </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="Reading Mode"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="Toggle Between Light and Dark Mode"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="Toggle Between Single-column and Double-column"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="Settings"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="Table of Contents"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="Back to Top"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/Errial.github.io/js/utils.js?v=5.5.4"></script><script src="/Errial.github.io/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div><!-- hexo injector body_end start --><script data-pjax>
+    function butterfly_categories_card_injector_config(){
+      var parent_div_git = document.getElementById('recent-posts');
+      var item_html = '<style>li.categoryBar-list-item{width:32.3%;}.categoryBar-list{max-height: 190px;overflow:auto;}.categoryBar-list::-webkit-scrollbar{width:0!important}@media screen and (max-width: 650px){.categoryBar-list{max-height: 160px;}}</style><div class="recent-post-item" style="height:auto;width:100%;padding:0px;"><div id="categoryBar"><ul class="categoryBar-list"></ul></div></div>';
+      console.log('已挂载butterfly_categories_card')
+      parent_div_git.insertAdjacentHTML("afterbegin",item_html)
+      }
+    if( document.getElementById('recent-posts') && (location.pathname ==='/'|| '/' ==='all')){
+    butterfly_categories_card_injector_config()
+    }
+  </script><!-- hexo injector body_end end --></body></html>
