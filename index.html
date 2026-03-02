@@ -215,20 +215,28 @@
 <h2 id="跨帧内容分离"><a href="#跨帧内容分离" class="headerlink" title="跨帧内容分离"></a>跨帧内容分离</h2><p>首先我们需要两个容器来储存内容，它们分别为上一帧的数据以及这一帧将要产生的数据。</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">private NativeArray&lt;float&gt; _finalResultA;</span><br><span class="line">private NativeArray&lt;float&gt; _finalResultB;</span><br><span class="line">private bool _isWritingToA = true; </span><br></pre></td></tr></table></figure>
 <p>从设计上可以看到，两者的设计完全一样，所以我们只需要使用一个标志位<strong>isWritingToA</strong>判断,并且在结束时需要做一次反转，并不需要刻意区分。 </p>
-<p>当然了我们需要跳过第一帧的渲染，因为没有渲染内容的。由于过于简单，这里不再演示。<br>至此我们区分了本帧数据与上一帧数据的界限。在代码中表现为了read与write。</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">private void Update()</span><br><span class="line">&#123;  </span><br><span class="line">    var writeBuffer = _isWritingToA ? _finalResultA : _finalResultB;   </span><br><span class="line">    var readBuffer = _isWritingToA ? _finalResultB : _finalResultA;   </span><br><span class="line"></span><br><span class="line">    //渲染上一帧的数据</span><br><span class="line">    ...</span><br><span class="line"></span><br><span class="line">    //写入本帧中的逻辑</span><br><span class="line">    ...</span><br><span class="line">    _isWritingToA = !_isWritingToA;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<h2 id="理论设计"><a href="#理论设计" class="headerlink" title="理论设计"></a>理论设计</h2><p>从无论怎么设计，cpu完成任务的 total ms 并不会因为我们的设计而减少。<br>总任务量不会消失，只是分到了下一帧当中。<br>虽然在底层优化中，由于我们的读写分离设计，编译器以及系统可能会做出一些优化，但是此处可以忽略不计。  </p>
-<h2 id="并行视角下的设计理论-任务重叠机制"><a href="#并行视角下的设计理论-任务重叠机制" class="headerlink" title="并行视角下的设计理论 - 任务重叠机制"></a>并行视角下的设计理论 - 任务重叠机制</h2><p>在并行技术的支持下，这一套设计理念可以产生巨大的优势。<br>由于Unity本身的限制，我们的渲染逻辑只能在主线程中实现，但是我们可以将本帧数中的操作交给并行核心去实现。此时在既定的时间内，读写是同时执行的。<br>让我们理一下逻辑：  </p>
+<p>当然了我们需要跳过第一帧，因为没有可以操作的内容。由于过于简单，这里不再演示。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">private void Update()</span><br><span class="line">&#123;  </span><br><span class="line">    var writeBuffer = _isWritingToA ? _finalResultA : _finalResultB;   </span><br><span class="line">    var readBuffer = _isWritingToA ? _finalResultB : _finalResultA;   </span><br><span class="line"></span><br><span class="line">    ...</span><br><span class="line">    //处理readBuffer中上一帧已经就绪的数据。</span><br><span class="line">    ...</span><br><span class="line">    //update中需要做的其他任何事情。</span><br><span class="line">    ...</span><br><span class="line">    //将本帧中的数据写入writeBuffer。</span><br><span class="line">    ...</span><br><span class="line"></span><br><span class="line">    //反转标志位</span><br><span class="line">    _isWritingToA = !_isWritingToA;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>至此我们区分了本帧数据与上一帧数据的界限。虽然看起来他们依旧在同一个update中。</p>
+<h2 id="理论设计"><a href="#理论设计" class="headerlink" title="理论设计"></a>理论设计</h2><p>从无论怎么设计，CPU完成任务的总耗时并不会因为我们的设计而减少。<br>总任务量不会消失，只是分到了下一帧当中。<br>虽然在底层优化中，由于我们的读写分离设计，编译器以及系统可能会做出一些优化，但是此处可以忽略不计。  </p>
+<h2 id="并行视角下的设计理论-任务重叠机制"><a href="#并行视角下的设计理论-任务重叠机制" class="headerlink" title="并行视角下的设计理论 - 任务重叠机制"></a>并行视角下的设计理论 - 任务重叠机制</h2><p>在并行技术的支持下，这一套设计理念可以产生巨大的优势。<br>由于我们之前的设计区分了读写边界，那么在并行逻辑下就可以实现所谓的任务重叠。<br>思路如下：我们可以在讲上一帧的写操作改为并行逻辑即可。<br>在上一帧的并行指令调度发出后，直到在当前帧的读逻辑完成前的这段时间里。读写任务实现了重叠。  </p>
+<blockquote>
+<p>也许你会问，如果我的写操作依赖上一帧的数据怎么办？<br>答案很简单，在写的并行指令调度发出前，我们有一个强制的Sync Point，上一帧的数据在此时已经准备好了，因为他们在同一个update中是串行的。</p>
+</blockquote>
+<p>让我们简单理一下逻辑：  </p>
 <ul>
-<li>本帧开始。</li>
-<li>主线程cpu拿到上一帧的结果并渲染结果。</li>
+<li>Update的生命周期被执行。</li>
+<li>主线程向并行线程询问上一帧数据是否计算完毕并强制等待上一帧启动的并行逻辑结束。</li>
+<li>主线程cpu拿到上一帧的结果并执行读的操作。</li>
 <li>上一帧数据处理完毕。</li>
-<li>向并行核心询问上一帧数据是否计算完毕并强制等待上一帧启动的并行逻辑结束。</li>
-<li>准备本帧中的写操作，下达调度指令让并行核心去执行。</li>
+<li>准备本帧中的写操作。</li>
+<li>下达调度指令让并行核心去执行。</li>
+<li>处理其他的必须流程后，进入后续的生命周期。</li>
 </ul>
-<p>基于此种设计实现任务重叠，在下一帧的Sync Point之前，主线程cpu的并不会因为过量的操作而拖慢当前帧时间。<br>在理想的情况下，每帧中的Cpu只需要收割上一帧的数据和下发新一轮并行指令。</p>
-<p>如果是基于Job System。在测试环境中，主线程如果压力较小，也会去分担已经分出去的Job任务。<br>但是此时会产生额外的调度开销。</p>
-<h2 id="串行视角下的设计理论"><a href="#串行视角下的设计理论" class="headerlink" title="串行视角下的设计理论"></a>串行视角下的设计理论</h2><p>上述代码中为了方便演示，我们只跨越了一帧，实际上对于非敏感的场景，我们可以根据需求跨越更多的帧，<strong>将一帧中cpu的压力分布到多帧当中</strong>，进而保障帧率与视觉上流畅。<br>借助Unity提供的 <code>IEnumerator</code> 也可以很方便的实现这一点。<br>而与之俱来的问题是随着跨越的帧数增加，最终的同步将会出现更复杂的情况。<br>由于串行逻辑不是我们讨论的重点，所以此处只是抛砖引玉。</p>
+<p>基于此种设计实现任务重叠，在下一帧的Sync Point之前，主线程cpu的并不会因为过量的操作而拖慢当前帧时间。<br>在理想的情况下，即每次CPU询问并行线程时，任务都已经完成。每个Update中的CPU任务只需要收割上一帧的数据和下发新一轮并行指令。</p>
+<p>如果是基于Job System。在测试环境中，主线程如果压力较小，甚至会将发布给Job worker的任务再调度回来自己完成。<br>但是此时会产生额外的调度开销。<br><em>这是隐形的性能陷阱，我们在后续的博客中再讨论这一点。</em></p>
+<h2 id="串行视角下的设计理论"><a href="#串行视角下的设计理论" class="headerlink" title="串行视角下的设计理论"></a>串行视角下的设计理论</h2><p>上述代码中为了方便演示，我们只跨越了一帧，实际上对于非敏感的场景，我们可以根据需求跨越更多的帧，<strong>将一帧中cpu的压力分布到多帧当中</strong>，进而保障帧率与视觉上流畅。<br>借助Unity提供的 <code>IEnumerator</code> 也可以很便捷的实现这一点。想必大多数的Unity开发者都明白这一点，不再多余强调。<br>而与之俱来的问题是随着跨越的帧数增加，最终的同步将会出现更复杂的情况。也就是我们常说的协程与回调地狱。同时现有的很多框架都会针对这一点做优化和处理。</p>
+<p>由于串行逻辑不是我们讨论的重点，所以此处只是抛砖引玉。</p>
 
       
     </div>
@@ -301,7 +309,7 @@
 <p><strong>Date</strong>: 2026-03-01<br><strong>Author</strong>: Errial<br><strong>Tags</strong>: #UnityDOTS #HighPerformance #Branchless #16KB-L1  </p>
 </blockquote>
 <h2 id="序"><a href="#序" class="headerlink" title="序"></a>序</h2><p>最近在设计高性能计算时遇到了性能需求，需要尽可能少的产生分支预测。<br>虽然函数库 <em>Unity.Mathematics</em>，其内部提供了<em>math.select</em>等相关高性能计算的API接口。<br>问题在于这些API即使反编译看起来也很晦涩难懂，所以自己实现了一版的门控逻辑。</p>
-<h2 id="一、-基本逻辑与实现"><a href="#一、-基本逻辑与实现" class="headerlink" title="一、 基本逻辑与实现"></a>一、 基本逻辑与实现</h2><p><code> uint gate = (uint)(((long)rawValue - (long)(mask + 1)) &gt;&gt; 63);</code><br>是的，代码只有一行。其实非常的简单，但是涉及到的知识点较多，我们逐一分析。</p>
+<h2 id="一、-基本逻辑与实现"><a href="#一、-基本逻辑与实现" class="headerlink" title="一、 基本逻辑与实现"></a>一、 基本逻辑与实现</h2><p><code>uint gate = (uint)(((long)rawValue - (long)(mask + 1)) &gt;&gt; 63);</code><br>是的，代码只有一行。其实非常的简单，但是涉及到的知识点较多，我们逐一分析。</p>
 <h4 id="基本原理与mask-1-？"><a href="#基本原理与mask-1-？" class="headerlink" title="基本原理与mask + 1 ？"></a>基本原理与mask + 1 ？</h4><p><em>rawValue</em>是传入的原始值，<em>Mask</em>是标准模。理论上来说如果说一个数值大于<em>Mask</em>来说的话即非法。<br>所以方案就跃然纸上，使得两者相减，必然会获得三个数学结果<br><strong>大于0，小于0，等于0</strong>。<br><code>mask + 1</code>的意义就在于是否需要设计包含0的情况，因为0在shift后会产生“关门”的结果。<br>这里我们需要包含0，故而将mask扩大1，使得rawValue与mask相等时也会产生负数。</p>
 <h4 id="逻辑运算与计算运算以及掩码扩散机制"><a href="#逻辑运算与计算运算以及掩码扩散机制" class="headerlink" title="逻辑运算与计算运算以及掩码扩散机制"></a>逻辑运算与计算运算以及掩码扩散机制</h4><p>注意，笔者在进行算数相减前先做了一次类型转换，强制转为了<strong>long</strong>。注意，这是<strong>必要的</strong>。<br>显而易见，如果原类型是无符号类型，我们是无法获得负数的，此时执行的是纯粹的逻辑运算。<br>而如果是有符号类型，对于存在符号位的情况下，会进行运算计算，继而产生我们所说的掩码扩散机制。</p>
 <p>将结果向右移<code>sizeof(type) - 1</code>位数。<br>如果读者的计算机基础尚可的话，就会明白，此时得到的结果如下:</p>
@@ -310,7 +318,7 @@
 <li>预期类型2：0x0000….0000</li>
 </ul>
 <h4 id="门控的实现"><a href="#门控的实现" class="headerlink" title="门控的实现"></a>门控的实现</h4><p>通过上面的计算，我们得到了一个有符号类型的二进制数<code>effectiveMask</code>，全为1或者全为0。此时的逻辑已经接近于<em>bool</em>类型了。<br>然后在后续的计算中，就可以使rawValue &amp; effectiveMask。来控制写入是否生效。</p>
-<h2 id="二、-双向选择网关-The-Select-MUX-Gate"><a href="#二、-双向选择网关-The-Select-MUX-Gate" class="headerlink" title="二、 双向选择网关 (The Select&#x2F;MUX Gate)"></a>二、 双向选择网关 (The Select&#x2F;MUX Gate)</h2><p>基于上述的基本理论，我们可以利用我们的计算原型<code>gate</code>做更多的事情。</p>
+<h2 id="二、-双向选择网关-The-Select-MUX-Gate"><a href="#二、-双向选择网关-The-Select-MUX-Gate" class="headerlink" title="二、 双向选择网关 (The Select/MUX Gate)"></a>二、 双向选择网关 (The Select/MUX Gate)</h2><p>基于上述的基本理论，我们可以利用我们的计算原型<code>gate</code>做更多的事情。</p>
 <ul>
 <li>代码实现：<code>uint result = (A &amp; gate) | (B &amp; ~gate);</code></li>
 <li>物理解析：  <ul>
