@@ -140,7 +140,7 @@
   <nav class="site-state">
       <div class="site-state-item site-state-posts">
         <a href="/archives/">
-          <span class="site-state-item-count">1</span>
+          <span class="site-state-item-count">2</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
@@ -158,6 +158,94 @@
     </div>
 
     <div class="main-inner index posts-expand">
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://sleipnir3.github.io/2026/03/02/Double_Buffering/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Erriapus.">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Cyberlex Ω - The ring world">
+      <meta itemprop="description" content="关于技术、架构与赛博思维的深度思考">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content=" | Cyberlex Ω - The ring world">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2026/03/02/Double_Buffering/" class="post-title-link" itemprop="url">Unity下的双缓冲机制与跨帧同步的理论</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-03-02 00:00:00" itemprop="dateCreated datePublished" datetime="2026-03-02T00:00:00+08:00">2026-03-02</time>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <blockquote>
+<p><strong>Date</strong>: 2026-03-01<br><strong>Author</strong>: Errial<br><strong>Tags</strong>: #DoubleBuffering</p>
+</blockquote>
+<h2 id="跨帧内容分离"><a href="#跨帧内容分离" class="headerlink" title="跨帧内容分离"></a>跨帧内容分离</h2><p>首先我们需要两个容器来储存内容，它们分别为上一帧的数据以及这一帧将要产生的数据。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">private NativeArray&lt;float&gt; _finalResultA;</span><br><span class="line">private NativeArray&lt;float&gt; _finalResultB;</span><br><span class="line">private bool _isWritingToA = true; </span><br></pre></td></tr></table></figure>
+<p>从设计上可以看到，两者的设计完全一样，所以我们只需要使用一个标志位<strong>isWritingToA</strong>判断,并且在结束时需要做一次反转，并不需要刻意区分。 </p>
+<p>当然了我们需要跳过第一帧的渲染，因为没有渲染内容的。由于过于简单，这里不再演示。<br>至此我们区分了本帧数据与上一帧数据的界限。在代码中表现为了read与write。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">private void Update()</span><br><span class="line">&#123;  </span><br><span class="line">    var writeBuffer = _isWritingToA ? _finalResultA : _finalResultB;   </span><br><span class="line">    var readBuffer = _isWritingToA ? _finalResultB : _finalResultA;   </span><br><span class="line"></span><br><span class="line">    //渲染上一帧的数据</span><br><span class="line">    ...</span><br><span class="line"></span><br><span class="line">    //写入本帧中的逻辑</span><br><span class="line">    ...</span><br><span class="line">    _isWritingToA = !_isWritingToA;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="理论设计"><a href="#理论设计" class="headerlink" title="理论设计"></a>理论设计</h2><p>从无论怎么设计，cpu完成任务的 total ms 并不会因为我们的设计而减少。<br>总任务量不会消失，只是分到了下一帧当中。<br>虽然在底层优化中，由于我们的读写分离设计，编译器以及系统可能会做出一些优化，但是此处可以忽略不计。  </p>
+<h2 id="并行视角下的设计理论-任务重叠机制"><a href="#并行视角下的设计理论-任务重叠机制" class="headerlink" title="并行视角下的设计理论 - 任务重叠机制"></a>并行视角下的设计理论 - 任务重叠机制</h2><p>在并行技术的支持下，这一套设计理念可以产生巨大的优势。<br>由于Unity本身的限制，我们的渲染逻辑只能在主线程中实现，但是我们可以将本帧数中的操作交给并行核心去实现。此时在既定的时间内，读写是同时执行的。<br>让我们理一下逻辑：  </p>
+<ul>
+<li>本帧开始。</li>
+<li>主线程cpu拿到上一帧的结果并渲染结果。</li>
+<li>上一帧数据处理完毕。</li>
+<li>向并行核心询问上一帧数据是否计算完毕并强制等待上一帧启动的并行逻辑结束。</li>
+<li>准备本帧中的写操作，下达调度指令让并行核心去执行。</li>
+</ul>
+<p>基于此种设计实现任务重叠，在下一帧的Sync Point之前，主线程cpu的并不会因为过量的操作而拖慢当前帧时间。<br>在理想的情况下，每帧中的Cpu只需要收割上一帧的数据和下发新一轮并行指令。</p>
+<p>如果是基于Job System。在测试环境中，主线程如果压力较小，也会去分担已经分出去的Job任务。<br>但是此时会产生额外的调度开销。</p>
+<h2 id="串行视角下的设计理论"><a href="#串行视角下的设计理论" class="headerlink" title="串行视角下的设计理论"></a>串行视角下的设计理论</h2><p>上述代码中为了方便演示，我们只跨越了一帧，实际上对于非敏感的场景，我们可以根据需求跨越更多的帧，<strong>将一帧中cpu的压力分布到多帧当中</strong>，进而保障帧率与视觉上流畅。<br>借助Unity提供的 <code>IEnumerator</code> 也可以很方便的实现这一点。<br>而与之俱来的问题是随着跨越的帧数增加，最终的同步将会出现更复杂的情况。<br>由于串行逻辑不是我们讨论的重点，所以此处只是抛砖引玉。</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
 
     
 
@@ -210,7 +298,7 @@
     
     <div class="post-body" itemprop="articleBody">
           <blockquote>
-<p><strong>Date</strong>: 2026-02-28<br><strong>Author</strong>: Errial<br><strong>Tags</strong>: #UnityDOTS #HighPerformance #Branchless #16KB-L1  </p>
+<p><strong>Date</strong>: 2026-03-01<br><strong>Author</strong>: Errial<br><strong>Tags</strong>: #UnityDOTS #HighPerformance #Branchless #16KB-L1  </p>
 </blockquote>
 <h2 id="序"><a href="#序" class="headerlink" title="序"></a>序</h2><p>最近在设计高性能计算时遇到了性能需求，需要尽可能少的产生分支预测。<br>虽然函数库 <em>Unity.Mathematics</em>，其内部提供了<em>math.select</em>等相关高性能计算的API接口。<br>问题在于这些API即使反编译看起来也很晦涩难懂，所以自己实现了一版的门控逻辑。</p>
 <h2 id="一、-基本逻辑与实现"><a href="#一、-基本逻辑与实现" class="headerlink" title="一、 基本逻辑与实现"></a>一、 基本逻辑与实现</h2><p><code> uint gate = (uint)(((long)rawValue - (long)(mask + 1)) &gt;&gt; 63);</code><br>是的，代码只有一行。其实非常的简单，但是涉及到的知识点较多，我们逐一分析。</p>
