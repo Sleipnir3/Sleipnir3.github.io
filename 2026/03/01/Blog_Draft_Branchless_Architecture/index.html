@@ -216,7 +216,7 @@
 <p><strong>Date</strong>: 2026-03-01<br><strong>Author</strong>: Errial<br><strong>Tags</strong>: #UnityDOTS #HighPerformance #Branchless #16KB-L1  </p>
 </blockquote>
 <h2 id="序"><a href="#序" class="headerlink" title="序"></a>序</h2><p>最近在设计高性能计算时遇到了性能需求，需要尽可能少的产生分支预测。<br>虽然函数库 <em>Unity.Mathematics</em>，其内部提供了<em>math.select</em>等相关高性能计算的API接口。<br>问题在于这些API即使反编译看起来也很晦涩难懂，所以自己实现了一版的门控逻辑。</p>
-<h2 id="一、-基本逻辑与实现"><a href="#一、-基本逻辑与实现" class="headerlink" title="一、 基本逻辑与实现"></a>一、 基本逻辑与实现</h2><p><code>uint gate = (uint)(((long)rawValue - (long)(mask + 1)) &gt;&gt; 63);</code><br>是的，代码只有一行。其实非常的简单，但是涉及到的知识点较多，我们逐一分析。</p>
+<h2 id="一、-基本逻辑与实现"><a href="#一、-基本逻辑与实现" class="headerlink" title="一、 基本逻辑与实现"></a>一、 基本逻辑与实现</h2><p><code> uint gate = (uint)(((long)rawValue - (long)(mask + 1)) &gt;&gt; 63);</code><br>是的，代码只有一行。其实非常的简单，但是涉及到的知识点较多，我们逐一分析。</p>
 <h4 id="基本原理与mask-1-？"><a href="#基本原理与mask-1-？" class="headerlink" title="基本原理与mask + 1 ？"></a>基本原理与mask + 1 ？</h4><p><em>rawValue</em>是传入的原始值，<em>Mask</em>是标准模。理论上来说如果说一个数值大于<em>Mask</em>来说的话即非法。<br>所以方案就跃然纸上，使得两者相减，必然会获得三个数学结果<br><strong>大于0，小于0，等于0</strong>。<br><code>mask + 1</code>的意义就在于是否需要设计包含0的情况，因为0在shift后会产生“关门”的结果。<br>这里我们需要包含0，故而将mask扩大1，使得rawValue与mask相等时也会产生负数。</p>
 <h4 id="逻辑运算与计算运算以及掩码扩散机制"><a href="#逻辑运算与计算运算以及掩码扩散机制" class="headerlink" title="逻辑运算与计算运算以及掩码扩散机制"></a>逻辑运算与计算运算以及掩码扩散机制</h4><p>注意，笔者在进行算数相减前先做了一次类型转换，强制转为了<strong>long</strong>。注意，这是<strong>必要的</strong>。<br>显而易见，如果原类型是无符号类型，我们是无法获得负数的，此时执行的是纯粹的逻辑运算。<br>而如果是有符号类型，对于存在符号位的情况下，会进行运算计算，继而产生我们所说的掩码扩散机制。</p>
 <p>将结果向右移<code>sizeof(type) - 1</code>位数。<br>如果读者的计算机基础尚可的话，就会明白，此时得到的结果如下:</p>
@@ -225,7 +225,7 @@
 <li>预期类型2：0x0000….0000</li>
 </ul>
 <h4 id="门控的实现"><a href="#门控的实现" class="headerlink" title="门控的实现"></a>门控的实现</h4><p>通过上面的计算，我们得到了一个有符号类型的二进制数<code>effectiveMask</code>，全为1或者全为0。此时的逻辑已经接近于<em>bool</em>类型了。<br>然后在后续的计算中，就可以使rawValue &amp; effectiveMask。来控制写入是否生效。</p>
-<h2 id="二、-双向选择网关-The-Select-MUX-Gate"><a href="#二、-双向选择网关-The-Select-MUX-Gate" class="headerlink" title="二、 双向选择网关 (The Select/MUX Gate)"></a>二、 双向选择网关 (The Select/MUX Gate)</h2><p>基于上述的基本理论，我们可以利用我们的计算原型<code>gate</code>做更多的事情。</p>
+<h2 id="二、-双向选择网关-The-Select-MUX-Gate"><a href="#二、-双向选择网关-The-Select-MUX-Gate" class="headerlink" title="二、 双向选择网关 (The Select&#x2F;MUX Gate)"></a>二、 双向选择网关 (The Select&#x2F;MUX Gate)</h2><p>基于上述的基本理论，我们可以利用我们的计算原型<code>gate</code>做更多的事情。</p>
 <ul>
 <li>代码实现：<code>uint result = (A &amp; gate) | (B &amp; ~gate);</code></li>
 <li>物理解析：  <ul>
