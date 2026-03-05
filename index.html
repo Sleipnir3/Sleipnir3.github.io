@@ -209,7 +209,7 @@
     
     
     <div class="post-body" itemprop="articleBody">
-          <h2 id="序"><a href="#序" class="headerlink" title="序"></a>序</h2><p>在ECS的情景下，对于 Entities 的生成与回收会对性能产生巨大的波动，对象池的设计是正是解决此类问题的优解。<br>但是对于传统的对象池，在大量存取之后，内存分布极其分散，在高性能场景下需要尽可能的使得物理内存聚集，故有此篇。</p>
+          <h2 id="序"><a href="#序" class="headerlink" title="序"></a>序</h2><p>在ECS的情景下，对于 Entities 的生成与回收会对性能产生巨大的波动。<br>对象池的设计是正是解决此类问题的优解。<br>但是对于传统的对象池，在大量存取之后，其内存分布将会变得无序且极度分散，但是在高性能，或高并发的场景下需要尽可能的使得物理内存聚集连续<br>故有此篇。</p>
 <h2 id="设计理念"><a href="#设计理念" class="headerlink" title="设计理念"></a>设计理念</h2><p>基于最小堆算法实现，如果读者对这个技术十分了解，则本篇已无继续阅读的必要。<br>由于Unity的限制，本篇依旧使用C#设计。  </p>
 <p>合法堆要求</p>
 <ul>
@@ -224,10 +224,10 @@
 <h3 id="二叉树探针"><a href="#二叉树探针" class="headerlink" title="二叉树探针"></a>二叉树探针</h3><p>在一个标准的完全二叉树结构中，使用如下方式可以获得任意Index节点的两个子节点或者是父节点。</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">// 获取节点的两个子节点</span><br><span class="line">int leftChild = (parentIdx &lt;&lt; 1) + 1;</span><br><span class="line">int rightChild = (parentIdx &lt;&lt; 1) + 2;</span><br><span class="line">// 获取节点的父节点</span><br><span class="line">int parentIdx = (childIdx - 1) &gt;&gt; 1;</span><br></pre></td></tr></table></figure>
 <p>但是要注意判空，有可能右节点是不存在的。</p>
-<h2 id="具体实现-出池"><a href="#具体实现-出池" class="headerlink" title="具体实现 - 出池"></a>具体实现 - 出池</h2><h3 id="队尾填充"><a href="#队尾填充" class="headerlink" title="队尾填充"></a>队尾填充</h3><p>在需求上我们需要拿到头部数据的同时，也不想支付昂贵的排序开销操作。</p>
+<h2 id="代码实现"><a href="#代码实现" class="headerlink" title="代码实现"></a>代码实现</h2><h3 id="出池队尾填充"><a href="#出池队尾填充" class="headerlink" title="出池队尾填充"></a>出池队尾填充</h3><p>在需求上我们需要拿到头部数据的同时，也不想支付昂贵的排序开销操作。</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">int minIndex = _freeHeap[0];</span><br><span class="line">int lastIdx = _freeHeap.Length - 1;</span><br><span class="line"></span><br><span class="line">_freeHeap[0] = _freeHeap[lastIdx];</span><br><span class="line">_freeHeap.RemoveAt(lastIdx);</span><br></pre></td></tr></table></figure>
 <p>我们拿出了首位的数据，同时将队尾的数据写入首位中，然后将队尾的数据弹出。<br>这样我们就避免了因为移除首位导致的内存断层，进而避免了触发 NativeList 的排序。<br>同时，我们也破坏了上述的合法堆的结构要求，整个堆变成了非法堆。<br>但是问题变得更好解决，对于 CPU 而言，完全二叉树排序是一个非常简单又轻松的工作。<br>我们的问题从 连续内存断层后的数据移动 变为了 将错乱的完全二叉树合法化 。<br>具体的实现我们在下文中探讨。</p>
-<h3 id="“重力索引”-修复破碎的非法堆"><a href="#“重力索引”-修复破碎的非法堆" class="headerlink" title="“重力索引” - 修复破碎的非法堆"></a>“重力索引” - 修复破碎的非法堆</h3><p>上文的操作中，我们已经知道，当前堆是紧凑的，但是逻辑上非法。<br>核心逻辑在于寻找子节点中的小值是否合法，即大于或等于父节点。  </p>
+<h3 id="“重力索引”-修复破碎的非法堆"><a href="#“重力索引”-修复破碎的非法堆" class="headerlink" title="“重力索引” - 修复破碎的非法堆"></a>“重力索引” - 修复破碎的非法堆</h3><p>上文的操作中，我们已经知道，当前堆物理上是紧凑的，但是逻辑上是非法的。<br>在出池的修复逻辑下，问题的关键在于寻找子节点中的小值是否合法，即大于或等于父节点。  </p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">while (true)</span><br><span class="line">&#123;</span><br><span class="line">    int leftChild = (parentIdx &lt;&lt; 1) + 1;</span><br><span class="line">    int rightChild = (parentIdx &lt;&lt; 1) + 2;</span><br><span class="line">    if (leftChild &gt;= _freeHeap.Length) break;</span><br><span class="line">    //判断是否有右节点，并且右节点小于左节点。获取最小的子节点。</span><br><span class="line">    int smallestChild = (rightChild &lt; _freeHeap.Length &amp;&amp; _freeHeap[rightChild] &lt; _freeHeap[leftChild]) </span><br><span class="line">                        ? rightChild : leftChild;</span><br><span class="line"></span><br><span class="line">    if (_freeHeap[parentIdx] &lt;= _freeHeap[smallestChild]) break;</span><br><span class="line"></span><br><span class="line">    int temp = _freeHeap[parentIdx];</span><br><span class="line">    _freeHeap[parentIdx] = _freeHeap[smallestChild];</span><br><span class="line">    _freeHeap[smallestChild] = temp;</span><br><span class="line">    parentIdx = smallestChild;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
 
@@ -242,18 +242,19 @@
 </li>
 </ul>
 <hr>
-<p>入池的逻辑与出池基本类似，将数据加入队尾，同时恢复合法堆的结构。</p>
+<p>入池的逻辑与出池基本类似，将数据加入队尾，同时通过算法恢复堆的合法结构。</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">_freeHeap.Add(index);</span><br><span class="line">int childIdx = _freeHeap.Length - 1;</span><br><span class="line"></span><br><span class="line">while (childIdx &gt; 0)</span><br><span class="line">&#123;</span><br><span class="line">    int parentIdx = (childIdx - 1) &gt;&gt; 1;</span><br><span class="line">    if (_freeHeap[childIdx] &gt;= _freeHeap[parentIdx]) break;</span><br><span class="line"></span><br><span class="line">    // 交换：小的索引向上浮动</span><br><span class="line">    int temp = _freeHeap[childIdx];</span><br><span class="line">    _freeHeap[childIdx] = _freeHeap[parentIdx];</span><br><span class="line">    _freeHeap[parentIdx] = temp;</span><br><span class="line">    childIdx = parentIdx;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 <p>数学复杂度公式 (The Computational Bound)<br>对于一个拥有 $N$ 个元素的完全二叉树：</p>
 <ul>
 <li>最大交换次数 ($H$)：$\lceil \log_2(N + 1) \rceil - 1$</li>
 <li>对于 $N &#x3D; 1024$：<ul>
 <li>$2^{10} &#x3D; 1024$，所以最大高度约为 10 层。</li>
-<li>结论：即使你归还的是最末尾的一个最小索引，它最多也只需要 10 次 比较和 10 次 交换就能到达堆顶。</li>
+<li>结论：即使归还的是最末尾的一个最小索引，它最多也只需要 10 次 比较和 10 次 交换就能到达堆顶。</li>
 </ul>
 </li>
 </ul>
-<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>以上，无论我们在出池或者入池时，都保障了堆的合法性。<br>不仅获取了头部数据，也避免了庞大的性能开销。<br>至于初始化部分和运行时逻辑健壮性在此不过多讨论，依据具体需求实现即可。  </p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>以上，无论我们在出池或者入池时，都保障了堆的合法性。<br>不仅获取了头部数据，也避免了因为连续内存断层导致的庞大的性能开销。<br>至于初始化部分和运行时逻辑健壮性在此不过多讨论，依据具体需求实现即可。  </p>
+<h2 id="尾记"><a href="#尾记" class="headerlink" title="尾记"></a>尾记</h2><p>至于为什么命名”重力索引“？我们以出池为例。<br>如果读者尝试推导这个计算过程就不难发现，这个算法的流程其实就是将末尾的数值放在二叉树顶部，然后逐步将其”踢回“属于它的位置。<br>就像一个石头从山峰上滚下去。</p>
 
       
     </div>
