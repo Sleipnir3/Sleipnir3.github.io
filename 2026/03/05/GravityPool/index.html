@@ -24,13 +24,13 @@
 <meta property="og:type" content="article">
 <meta property="og:title" content="基于完全二叉树最小堆重力索引池">
 <meta property="og:url" content="https://sleipnir3.github.io/2026/03/05/GravityPool/index.html">
-<meta property="og:site_name" content="Cyberlex Ω - The ring world">
+<meta property="og:site_name" content="Cyberlex Ω - 环形世界">
 <meta property="og:description" content="序在ECS的情景下，对于 Entities 的生成与回收会对性能产生巨大的波动。对象池的设计是正是解决此类问题的优解。但是对于传统的对象池，在大量存取之后，其内存分布将会变得无序且极度分散，但是在高性能，或高并发的场景下需要尽可能的使得物理内存聚集连续故有此篇。 设计理念基于最小堆算法实现，如果读者对这个技术十分了解，则本篇已无继续阅读的必要。由于Unity的限制，本篇依旧使用C#设计。   合法">
 <meta property="og:locale" content="zh_CN">
 <meta property="article:published_time" content="2026-03-04T16:00:00.000Z">
 <meta property="article:modified_time" content="2026-03-05T13:09:03.311Z">
 <meta property="article:author" content="Erriapus.">
-<meta property="article:tag" content="技术, 架构, 赛博勒克斯, 博客">
+<meta property="article:tag" content="技术, 架构, ECS, 博客">
 <meta name="twitter:card" content="summary">
 
 
@@ -40,7 +40,7 @@
 <script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"https://sleipnir3.github.io/2026/03/05/GravityPool/","path":"2026/03/05/GravityPool/","title":"基于完全二叉树最小堆重力索引池"}</script>
 
 <script class="next-config" data-name="calendar" type="application/json">""</script>
-<title>基于完全二叉树最小堆重力索引池 | Cyberlex Ω - The ring world</title>
+<title>基于完全二叉树最小堆重力索引池 | Cyberlex Ω - 环形世界</title>
   
 
 
@@ -90,7 +90,7 @@
 
     <a href="/" class="brand" rel="start">
       <i class="logo-line"></i>
-      <p class="site-title">Cyberlex Ω - The ring world</p>
+      <p class="site-title">Cyberlex Ω - 环形世界</p>
       <i class="logo-line"></i>
     </a>
       <p class="site-subtitle" itemprop="description">探索环形世界的边界</p>
@@ -137,7 +137,7 @@
         <div class="site-overview-wrap sidebar-panel">
           <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
   <p class="site-author-name" itemprop="name">Erriapus.</p>
-  <div class="site-description" itemprop="description">关于技术、架构与赛博思维的深度思考</div>
+  <div class="site-description" itemprop="description">关于Unity技术、架构深度思考</div>
 </div>
 <div class="site-state-wrap animated">
   <nav class="site-state">
@@ -179,12 +179,12 @@
     </span>
 
     <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Cyberlex Ω - The ring world">
-      <meta itemprop="description" content="关于技术、架构与赛博思维的深度思考">
+      <meta itemprop="name" content="Cyberlex Ω - 环形世界">
+      <meta itemprop="description" content="关于Unity技术、架构深度思考">
     </span>
 
     <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="基于完全二叉树最小堆重力索引池 | Cyberlex Ω - The ring world">
+      <meta itemprop="name" content="基于完全二叉树最小堆重力索引池 | Cyberlex Ω - 环形世界">
       <meta itemprop="description" content="">
     </span>
       <header class="post-header">
