@@ -20,25 +20,27 @@
 
 <script class="next-config" data-name="main" type="application/json">{"hostname":"sleipnir3.github.io","root":"/","images":"/images","scheme":"Mist","darkmode":true,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"stackoverflow-dark"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
 
-    <meta name="description" content="关于技术、架构与赛博思维的深度思考">
-<meta property="og:type" content="website">
-<meta property="og:title" content="Cyberlex Ω - The ring world">
-<meta property="og:url" content="https://sleipnir3.github.io/index.html">
+    <meta name="description" content="序在ECS的情景下，对于 Entities 的生成与回收会对性能产生巨大的波动，对象池的设计是正是解决此类问题的优解。但是对于传统的对象池，在大量存取之后，内存分布极其分散，在高性能场景下需要尽可能的使得物理内存聚集，故有此篇。 设计理念基于最小堆算法实现，如果读者对这个技术十分了解，则本篇已无继续阅读的必要。由于Unity的限制，本篇依旧使用C#设计。   合法堆要求  数据结构为完全二叉树。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="基于完全二叉树最小堆重力索引池">
+<meta property="og:url" content="https://sleipnir3.github.io/2026/03/05/GravityPool/index.html">
 <meta property="og:site_name" content="Cyberlex Ω - The ring world">
-<meta property="og:description" content="关于技术、架构与赛博思维的深度思考">
+<meta property="og:description" content="序在ECS的情景下，对于 Entities 的生成与回收会对性能产生巨大的波动，对象池的设计是正是解决此类问题的优解。但是对于传统的对象池，在大量存取之后，内存分布极其分散，在高性能场景下需要尽可能的使得物理内存聚集，故有此篇。 设计理念基于最小堆算法实现，如果读者对这个技术十分了解，则本篇已无继续阅读的必要。由于Unity的限制，本篇依旧使用C#设计。   合法堆要求  数据结构为完全二叉树。">
 <meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-03-04T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-03-05T12:47:38.960Z">
 <meta property="article:author" content="Erriapus.">
 <meta property="article:tag" content="技术, 架构, 赛博勒克斯, 博客">
 <meta name="twitter:card" content="summary">
 
 
-<link rel="canonical" href="https://sleipnir3.github.io/">
+<link rel="canonical" href="https://sleipnir3.github.io/2026/03/05/GravityPool/">
 
 
-<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":true,"isPost":false,"lang":"zh-CN","comments":"","permalink":"","path":"index.html","title":""}</script>
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"https://sleipnir3.github.io/2026/03/05/GravityPool/","path":"2026/03/05/GravityPool/","title":"基于完全二叉树最小堆重力索引池"}</script>
 
 <script class="next-config" data-name="calendar" type="application/json">""</script>
-<title>Cyberlex Ω - The ring world</title>
+<title>基于完全二叉树最小堆重力索引池 | Cyberlex Ω - The ring world</title>
   
 
 
@@ -88,7 +90,7 @@
 
     <a href="/" class="brand" rel="start">
       <i class="logo-line"></i>
-      <h1 class="site-title">Cyberlex Ω - The ring world</h1>
+      <p class="site-title">Cyberlex Ω - The ring world</p>
       <i class="logo-line"></i>
     </a>
       <p class="site-subtitle" itemprop="description">探索环形世界的边界</p>
@@ -115,7 +117,7 @@
   
   <aside class="sidebar">
 
-    <div class="sidebar-inner sidebar-overview-active">
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
       <ul class="sidebar-nav">
         <li class="sidebar-nav-toc">
           文章目录
@@ -128,6 +130,7 @@
       <div class="sidebar-panel-container">
         <!--noindex-->
         <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BA%8F"><span class="nav-number">1.</span> <span class="nav-text">序</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AE%BE%E8%AE%A1%E7%90%86%E5%BF%B5"><span class="nav-number">2.</span> <span class="nav-text">设计理念</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%B9%E5%99%A8%E8%AE%BE%E8%AE%A1-NativeList"><span class="nav-number">2.1.</span> <span class="nav-text">容器设计 - NativeList</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#NativeList-%E4%B8%AD%E7%9A%84%E6%80%A7%E8%83%BD%E6%B7%B1%E5%9D%91"><span class="nav-number">2.2.</span> <span class="nav-text">NativeList 中的性能深坑</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BA%8C%E5%8F%89%E6%A0%91%E6%8E%A2%E9%92%88"><span class="nav-number">2.3.</span> <span class="nav-text">二叉树探针</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%B7%E4%BD%93%E5%AE%9E%E7%8E%B0-%E5%87%BA%E6%B1%A0"><span class="nav-number">3.</span> <span class="nav-text">具体实现 - 出池</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%98%9F%E5%B0%BE%E5%A1%AB%E5%85%85"><span class="nav-number">3.1.</span> <span class="nav-text">队尾填充</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E2%80%9C%E9%87%8D%E5%8A%9B%E7%B4%A2%E5%BC%95%E2%80%9D-%E4%BF%AE%E5%A4%8D%E7%A0%B4%E7%A2%8E%E7%9A%84%E9%9D%9E%E6%B3%95%E5%A0%86"><span class="nav-number">3.2.</span> <span class="nav-text">“重力索引” - 修复破碎的非法堆</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">4.</span> <span class="nav-text">总结</span></a></li></ol></div>
         </div>
         <!--/noindex-->
 
@@ -157,16 +160,17 @@
 
     </div>
 
-    <div class="main-inner index posts-expand">
+    <div class="main-inner post posts-expand">
 
-    
+
+  
 
 
 <div class="post-block">
   
   
 
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="https://sleipnir3.github.io/2026/03/05/GravityPool/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -180,13 +184,13 @@
     </span>
 
     <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content=" | Cyberlex Ω - The ring world">
+      <meta itemprop="name" content="基于完全二叉树最小堆重力索引池 | Cyberlex Ω - The ring world">
       <meta itemprop="description" content="">
     </span>
       <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2026/03/05/GravityPool/" class="post-title-link" itemprop="url">基于完全二叉树最小堆重力索引池</a>
-        </h2>
+        <h1 class="post-title" itemprop="name headline">
+          基于完全二叉树最小堆重力索引池
+        </h1>
 
         <div class="post-meta-container">
           <div class="post-meta">
@@ -208,8 +212,7 @@
     
     
     
-    <div class="post-body" itemprop="articleBody">
-          <h2 id="序"><a href="#序" class="headerlink" title="序"></a>序</h2><p>在ECS的情景下，对于 Entities 的生成与回收会对性能产生巨大的波动，对象池的设计是正是解决此类问题的优解。<br>但是对于传统的对象池，在大量存取之后，内存分布极其分散，在高性能场景下需要尽可能的使得物理内存聚集，故有此篇。</p>
+    <div class="post-body" itemprop="articleBody"><h2 id="序"><a href="#序" class="headerlink" title="序"></a>序</h2><p>在ECS的情景下，对于 Entities 的生成与回收会对性能产生巨大的波动，对象池的设计是正是解决此类问题的优解。<br>但是对于传统的对象池，在大量存取之后，内存分布极其分散，在高性能场景下需要尽可能的使得物理内存聚集，故有此篇。</p>
 <h2 id="设计理念"><a href="#设计理念" class="headerlink" title="设计理念"></a>设计理念</h2><p>基于最小堆算法实现，如果读者对这个技术十分了解，则本篇已无继续阅读的必要。<br>由于Unity的限制，本篇依旧使用C#设计。  </p>
 <p>合法堆要求</p>
 <ul>
@@ -255,7 +258,6 @@
 </ul>
 <h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>以上，无论我们在出池或者入池时，都保障了堆的合法性。<br>不仅获取了头部数据，也避免了庞大的性能开销。<br>至于初始化部分和运行时逻辑健壮性在此不过多讨论，依据具体需求实现即可。  </p>
 
-      
     </div>
 
     
@@ -263,206 +265,39 @@
     
 
     <footer class="post-footer">
-        <div class="post-eof"></div>
-      
+          
+
+<div class="post-copyright">
+<ul>
+  <li class="post-copyright-author">
+      <strong>本文作者： </strong>Erriapus.
+  </li>
+  <li class="post-copyright-link">
+      <strong>本文链接：</strong>
+      <a href="https://sleipnir3.github.io/2026/03/05/GravityPool/" title="基于完全二叉树最小堆重力索引池">https://sleipnir3.github.io/2026/03/05/GravityPool/</a>
+  </li>
+  <li class="post-copyright-license">
+      <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/03/02/Double_Buffering/" rel="prev" title="Unity下的双缓冲机制与跨帧同步的理论">
+                  <i class="fa fa-angle-left"></i> Unity下的双缓冲机制与跨帧同步的理论
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
     </footer>
   </article>
 </div>
 
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://sleipnir3.github.io/2026/03/02/Double_Buffering/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="Erriapus.">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Cyberlex Ω - The ring world">
-      <meta itemprop="description" content="关于技术、架构与赛博思维的深度思考">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content=" | Cyberlex Ω - The ring world">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2026/03/02/Double_Buffering/" class="post-title-link" itemprop="url">Unity下的双缓冲机制与跨帧同步的理论</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">发表于</span>
-
-      <time title="创建时间：2026-03-02 00:00:00" itemprop="dateCreated datePublished" datetime="2026-03-02T00:00:00+08:00">2026-03-02</time>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <blockquote>
-<p><strong>Date</strong>: 2026-03-01<br><strong>Author</strong>: Errial<br><strong>Tags</strong>: #DoubleBuffering</p>
-</blockquote>
-<h2 id="跨帧内容分离"><a href="#跨帧内容分离" class="headerlink" title="跨帧内容分离"></a>跨帧内容分离</h2><p>首先我们需要两个容器来储存内容，它们分别为上一帧的数据以及这一帧将要产生的数据。</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">private NativeArray&lt;float&gt; _finalResultA;</span><br><span class="line">private NativeArray&lt;float&gt; _finalResultB;</span><br><span class="line">private bool _isWritingToA = true; </span><br></pre></td></tr></table></figure>
-<p>从设计上可以看到，两者的设计完全一样，所以我们只需要使用一个标志位<strong>isWritingToA</strong>判断,并且在结束时需要做一次反转，并不需要刻意区分。 </p>
-<p>当然了我们需要跳过第一帧，因为没有可以操作的内容。由于过于简单，这里不再演示。</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">private void Update()</span><br><span class="line">&#123;  </span><br><span class="line">    var writeBuffer = _isWritingToA ? _finalResultA : _finalResultB;   </span><br><span class="line">    var readBuffer = _isWritingToA ? _finalResultB : _finalResultA;   </span><br><span class="line"></span><br><span class="line">    ...</span><br><span class="line">    //处理readBuffer中上一帧已经就绪的数据。</span><br><span class="line">    ...</span><br><span class="line">    //update中需要做的其他任何事情。</span><br><span class="line">    ...</span><br><span class="line">    //将本帧中的数据写入writeBuffer。</span><br><span class="line">    ...</span><br><span class="line"></span><br><span class="line">    //反转标志位</span><br><span class="line">    _isWritingToA = !_isWritingToA;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>至此我们区分了本帧数据与上一帧数据的界限。虽然看起来他们依旧在同一个update中。</p>
-<h2 id="理论设计"><a href="#理论设计" class="headerlink" title="理论设计"></a>理论设计</h2><p>从无论怎么设计，CPU完成任务的总耗时并不会因为我们的设计而减少。<br>总任务量不会消失，只是分到了下一帧当中。<br>虽然在底层优化中，由于我们的读写分离设计，编译器以及系统可能会做出一些优化，但是此处可以忽略不计。  </p>
-<h2 id="并行视角下的设计理论-任务重叠机制"><a href="#并行视角下的设计理论-任务重叠机制" class="headerlink" title="并行视角下的设计理论 - 任务重叠机制"></a>并行视角下的设计理论 - 任务重叠机制</h2><p>在并行技术的支持下，这一套设计理念可以产生巨大的优势。<br>由于我们之前的设计区分了读写边界，那么在并行逻辑下就可以实现所谓的任务重叠。<br>思路如下：我们只需要将上一帧的写操作改为并行逻辑即可。<br>在上一帧的并行指令调度发出后，直到在当前帧的读逻辑完成前的这段时间里，读写任务在时间上就会产生一定程度的重叠。  </p>
-<blockquote>
-<p>也许你会问，如果我的写操作依赖上一帧的数据怎么办？<br>答案很简单，在写的并行指令调度发出前，我们有一个强制的Sync Point，上一帧的数据在此时已经准备好了，因为他们在同一个update中是串行的。</p>
-</blockquote>
-<p>让我们简单理一下逻辑：  </p>
-<ul>
-<li>Update的生命周期被执行。</li>
-<li>主线程向并行线程询问上一帧数据是否计算完毕并强制等待上一帧启动的并行逻辑结束。</li>
-<li>主线程cpu拿到上一帧的结果并执行读的操作。</li>
-<li>上一帧数据处理完毕。</li>
-<li>准备本帧中的写操作。</li>
-<li>下达调度指令让并行核心去执行。</li>
-<li>处理其他的必须流程后，进入后续的生命周期。</li>
-</ul>
-<p>基于此种设计实现任务重叠，在下一帧的Sync Point之前，主线程cpu的并不会因为过量的操作而拖慢当前帧时间。<br>在理想的情况下，即每次CPU询问并行线程时，任务都已经完成。每个Update中的CPU任务只需要收割上一帧的数据和下发新一轮并行指令。</p>
-<p>如果是基于Job System。在测试环境中，主线程如果压力较小，甚至会将发布给Job worker的任务再调度回来自己完成。<br>但是此时会产生额外的调度开销。<br><em>这是隐形的性能陷阱，我们在后续的博客中再讨论这一点。</em></p>
-<h2 id="串行视角下的设计理论"><a href="#串行视角下的设计理论" class="headerlink" title="串行视角下的设计理论"></a>串行视角下的设计理论</h2><p>上述代码中为了方便演示，我们只跨越了一帧，实际上对于非敏感的场景，我们可以根据需求跨越更多的帧，<strong>将一帧中cpu的压力分布到多帧当中</strong>，进而保障帧率与视觉上流畅。<br>借助Unity提供的 <code>IEnumerator</code> 也可以很便捷的实现这一点。想必大多数的Unity开发者都明白这一点，不再多余强调。<br>而与之俱来的问题是随着跨越的帧数增加，最终的同步将会出现更复杂的情况。也就是我们常说的协程与回调地狱。同时现有的很多框架都会针对这一点做优化和处理。</p>
-<p>由于串行逻辑不是我们讨论的重点，所以此处只是抛砖引玉。</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://sleipnir3.github.io/2026/03/01/Blog_Draft_Branchless_Architecture/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="Erriapus.">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Cyberlex Ω - The ring world">
-      <meta itemprop="description" content="关于技术、架构与赛博思维的深度思考">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content=" | Cyberlex Ω - The ring world">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2026/03/01/Blog_Draft_Branchless_Architecture/" class="post-title-link" itemprop="url">基于位运算的无分支门控注入与变体探究</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">发表于</span>
-
-      <time title="创建时间：2026-03-01 00:00:00" itemprop="dateCreated datePublished" datetime="2026-03-01T00:00:00+08:00">2026-03-01</time>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <blockquote>
-<p><strong>Date</strong>: 2026-03-01<br><strong>Author</strong>: Errial<br><strong>Tags</strong>: #UnityDOTS #HighPerformance #Branchless #16KB-L1  </p>
-</blockquote>
-<h2 id="序"><a href="#序" class="headerlink" title="序"></a>序</h2><p>最近在设计高性能计算时遇到了性能需求，需要尽可能少的产生分支预测。<br>虽然函数库 <em>Unity.Mathematics</em>，其内部提供了<em>math.select</em>等相关高性能计算的API接口。<br>问题在于这些API即使反编译看起来也很晦涩难懂，所以自己实现了一版的门控逻辑。</p>
-<h2 id="一、-基本逻辑与实现"><a href="#一、-基本逻辑与实现" class="headerlink" title="一、 基本逻辑与实现"></a>一、 基本逻辑与实现</h2><p><code> uint gate = (uint)(((long)rawValue - (long)(mask + 1)) &gt;&gt; 63);</code><br>是的，代码只有一行。其实非常的简单，但是涉及到的知识点较多，我们逐一分析。</p>
-<h4 id="基本原理与mask-1-？"><a href="#基本原理与mask-1-？" class="headerlink" title="基本原理与mask + 1 ？"></a>基本原理与mask + 1 ？</h4><p><em>rawValue</em>是传入的原始值，<em>Mask</em>是标准模。理论上来说如果说一个数值大于<em>Mask</em>来说的话即非法。<br>所以方案就跃然纸上，使得两者相减，必然会获得三个数学结果<br><strong>大于0，小于0，等于0</strong>。<br><code>mask + 1</code>的意义就在于是否需要设计包含0的情况，因为0在shift后会产生“关门”的结果。<br>这里我们需要包含0，故而将mask扩大1，使得rawValue与mask相等时也会产生负数。</p>
-<h4 id="逻辑运算与计算运算以及掩码扩散机制"><a href="#逻辑运算与计算运算以及掩码扩散机制" class="headerlink" title="逻辑运算与计算运算以及掩码扩散机制"></a>逻辑运算与计算运算以及掩码扩散机制</h4><p>注意，笔者在进行算数相减前先做了一次类型转换，强制转为了<strong>long</strong>。注意，这是<strong>必要的</strong>。<br>显而易见，如果原类型是无符号类型，我们是无法获得负数的，此时执行的是纯粹的逻辑运算。<br>而如果是有符号类型，对于存在符号位的情况下，会进行运算计算，继而产生我们所说的掩码扩散机制。</p>
-<p>将结果向右移<code>sizeof(type) - 1</code>位数。<br>如果读者的计算机基础尚可的话，就会明白，此时得到的结果如下:</p>
-<ul>
-<li>预期类型1：0xFFFF….FFFF</li>
-<li>预期类型2：0x0000….0000</li>
-</ul>
-<h4 id="门控的实现"><a href="#门控的实现" class="headerlink" title="门控的实现"></a>门控的实现</h4><p>通过上面的计算，我们得到了一个有符号类型的二进制数<code>effectiveMask</code>，全为1或者全为0。此时的逻辑已经接近于<em>bool</em>类型了。<br>然后在后续的计算中，就可以使rawValue &amp; effectiveMask。来控制写入是否生效。</p>
-<h2 id="二、-双向选择网关-The-Select-MUX-Gate"><a href="#二、-双向选择网关-The-Select-MUX-Gate" class="headerlink" title="二、 双向选择网关 (The Select&#x2F;MUX Gate)"></a>二、 双向选择网关 (The Select&#x2F;MUX Gate)</h2><p>基于上述的基本理论，我们可以利用我们的计算原型<code>gate</code>做更多的事情。</p>
-<ul>
-<li>代码实现：<code>uint result = (A &amp; gate) | (B &amp; ~gate);</code></li>
-<li>物理解析：  <ul>
-<li>当 gate 为全 1：结果是 (A &amp; 11..1) | (B &amp; 00..0) -&gt; A。  </li>
-<li>当 gate 为全 0：结果是 (A &amp; 00..0) | (B &amp; 11..1) -&gt; B。</li>
-</ul>
-</li>
-</ul>
-<p>基于上述功能，可以快捷的实现A或者B的选择。</p>
-<hr>
-<h2 id="三、-增量注入网关-The-Accumulator-Gate"><a href="#三、-增量注入网关-The-Accumulator-Gate" class="headerlink" title="三、 增量注入网关 (The Accumulator Gate)"></a>三、 增量注入网关 (The Accumulator Gate)</h2><p>一种快速的增量式写法  </p>
-<ul>
-<li>代码实现：<code>damage += (10 &amp; gate);</code>. </li>
-<li>解释：将“逻辑判断”转化为“加法中的零因子”。</li>
-</ul>
-<hr>
-<p><em>© 2026 Continuum-16KB Project</em></p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
 
 
 
