@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#222" media="(prefers-color-scheme: dark)"><meta name="generator" content="Hexo 8.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"sleipnir3.github.io","root":"/","images":"/images","scheme":"Mist","darkmode":true,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"stackoverflow-dark"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":false,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="L1 Cache &amp; 8-Way Set Associative序一篇关于 32KB L1d 缓存架构下 L1 Cache 相关设计以及特性的探究笔记。不涉及专业课本知识。解释了内存布局设计以及分批策略的缘由。   物理结构 (Physical Sturct)L1缓存的物理概念注意区分 L1缓存(L1 Cache) 与 缓存行(Cache Line) 的概念，它们完全是两码事，但是彼此之间">
+<meta property="og:type" content="article">
+<meta property="og:title" content="L1 Cache &amp; 8-Way Set Associative">
+<meta property="og:url" content="https://sleipnir3.github.io/2026/03/17/L1%20Cache%20&%208-Way%20Set%20Associative/index.html">
+<meta property="og:site_name" content="Cyberlex Ω - 环形世界">
+<meta property="og:description" content="L1 Cache &amp; 8-Way Set Associative序一篇关于 32KB L1d 缓存架构下 L1 Cache 相关设计以及特性的探究笔记。不涉及专业课本知识。解释了内存布局设计以及分批策略的缘由。   物理结构 (Physical Sturct)L1缓存的物理概念注意区分 L1缓存(L1 Cache) 与 缓存行(Cache Line) 的概念，它们完全是两码事，但是彼此之间">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-03-17T12:25:18.679Z">
+<meta property="article:modified_time" content="2026-03-17T12:34:15.098Z">
+<meta property="article:author" content="Erriapus.">
+<meta property="article:tag" content="技术, 架构, ECS, 博客">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://sleipnir3.github.io/2026/03/17/L1%20Cache%20&%208-Way%20Set%20Associative/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"https://sleipnir3.github.io/2026/03/17/L1%20Cache%20&%208-Way%20Set%20Associative/","path":"2026/03/17/L1 Cache & 8-Way Set Associative/","title":"L1 Cache & 8-Way Set Associative"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>L1 Cache & 8-Way Set Associative | Cyberlex Ω - 环形世界</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/motion.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Cyberlex Ω - 环形世界</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">探索环形世界的边界</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#L1-Cache-amp-8-Way-Set-Associative"><span class="nav-number">1.</span> <span class="nav-text">L1 Cache &amp; 8-Way Set Associative</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BA%8F"><span class="nav-number">1.1.</span> <span class="nav-text">序</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%89%A9%E7%90%86%E7%BB%93%E6%9E%84-Physical-Sturct"><span class="nav-number">1.2.</span> <span class="nav-text">物理结构 (Physical Sturct)</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#L1%E7%BC%93%E5%AD%98%E7%9A%84%E7%89%A9%E7%90%86%E6%A6%82%E5%BF%B5"><span class="nav-number">1.2.1.</span> <span class="nav-text">L1缓存的物理概念</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%89%A9%E7%90%86%E6%98%A0%E5%B0%84%E9%80%BB%E8%BE%91-Mapping-Logic-amp-4KB%E5%9B%9E%E7%8E%AF-amp-%E5%9C%B0%E5%9D%80%E5%86%B2%E7%AA%81"><span class="nav-number">1.2.2.</span> <span class="nav-text">物理映射逻辑 (Mapping Logic) &amp; 4KB回环 &amp; 地址冲突</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BA%94%E5%AF%B9%E7%AD%96%E7%95%A5"><span class="nav-number">1.3.</span> <span class="nav-text">应对策略</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80%E5%87%86%E5%88%99-Layout-Rules"><span class="nav-number">1.3.1.</span> <span class="nav-text">内存布局准则 (Layout Rules)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#16KB-%E5%87%86%E5%88%99"><span class="nav-number">1.3.2.</span> <span class="nav-text">16KB 准则</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8D%95%E6%B5%81%E5%8E%9F%E5%88%99%E4%B8%8E%E5%A4%9A%E6%B5%81%E5%A4%84%E7%90%86"><span class="nav-number">1.3.3.</span> <span class="nav-text">单流原则与多流处理</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%8D%95%E6%B5%81%E8%AE%BE%E8%AE%A1"><span class="nav-number">1.3.3.1.</span> <span class="nav-text">单流设计</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%A4%9A%E6%B5%81%E8%AE%BE%E8%AE%A1"><span class="nav-number">1.3.3.2.</span> <span class="nav-text">多流设计</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">1.4.</span> <span class="nav-text">总结</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Erriapus.</p>
+  <div class="site-description" itemprop="description">关于Unity技术、架构深度思考</div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">5</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://sleipnir3.github.io/2026/03/17/L1%20Cache%20&%208-Way%20Set%20Associative/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Erriapus.">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Cyberlex Ω - 环形世界">
+      <meta itemprop="description" content="关于Unity技术、架构深度思考">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="L1 Cache &amp; 8-Way Set Associative | Cyberlex Ω - 环形世界">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          L1 Cache & 8-Way Set Associative
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-03-17 20:25:18" itemprop="dateCreated datePublished" datetime="2026-03-17T20:25:18+08:00">2026-03-17</time>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h1 id="L1-Cache-amp-8-Way-Set-Associative"><a href="#L1-Cache-amp-8-Way-Set-Associative" class="headerlink" title="L1 Cache &amp; 8-Way Set Associative"></a>L1 Cache &amp; 8-Way Set Associative</h1><h2 id="序"><a href="#序" class="headerlink" title="序"></a>序</h2><p>一篇关于 <em>32KB L1d</em> 缓存架构下 <em>L1 Cache</em> 相关设计以及特性的探究笔记。不涉及专业课本知识。<br>解释了内存布局设计以及分批策略的缘由。  </p>
+<h2 id="物理结构-Physical-Sturct"><a href="#物理结构-Physical-Sturct" class="headerlink" title="物理结构 (Physical Sturct)"></a>物理结构 (Physical Sturct)</h2><h3 id="L1缓存的物理概念"><a href="#L1缓存的物理概念" class="headerlink" title="L1缓存的物理概念"></a>L1缓存的物理概念</h3><p>注意区分 <strong><em>L1缓存(L1 Cache)</em></strong> 与 <strong><em>缓存行(Cache Line)</em></strong> 的概念，它们完全是两码事，但是彼此之间相互构成。<br>在 <em>32KB L1d</em> 缓存架构下，物理层级被划分为 64 个组 (Sets)，每个组包含 8 个行(Ways/Lines)。</p>
+<p>上文所述的物理参数如下：</p>
+<ul>
+<li>L1 数据缓存容量: 32 KB (32,768 字节)。</li>
+<li>缓存行 (Cache Line): 64 字节 (最小存取单位)。</li>
+<li>总行数: 512 行 (32768 / 64)。</li>
+<li>组关联 (Associativity): 8-路 (8-Way)，每 8 行组成一个 Set (组)。</li>
+<li>组总数: 64 个 Sets (512 / 8)。</li>
+</ul>
+<p>通俗来说</p>
+<ul>
+<li>每 8 个bit组成了一个字节  </li>
+<li>64 个 8-bit 组成了一个 Cache Line   </li>
+<li>每 8 个 Cache Line 为一组，总计 64 组横向排列在一起，组成了 L1 Cache  </li>
+</ul>
+<p><em>此处缺少一张示意图</em></p>
+<h3 id="物理映射逻辑-Mapping-Logic-amp-4KB回环-amp-地址冲突"><a href="#物理映射逻辑-Mapping-Logic-amp-4KB回环-amp-地址冲突" class="headerlink" title="物理映射逻辑 (Mapping Logic) &amp; 4KB回环 &amp; 地址冲突"></a>物理映射逻辑 (Mapping Logic) &amp; 4KB回环 &amp; 地址冲突</h3><p><strong>Mapping Logic</strong><br>CPU预存器将数据从内存搬入L1缓存时，需要遵循以下规则：<br><strong>内存地址到缓存组的映射由地址位决定</strong></p>
+<ul>
+<li>Offset (6 bits): $Addr[5:0]$，决定缓存行内的字节偏移（0-63）。</li>
+<li>Index (6 bits): $Addr[11:6]$，决定所属组（0-63）。公式：$SetIndex = (Addr \gg 1) \ \&amp; \ 0x3F$。</li>
+<li>Tag (Remaining bits): 剩余高位地址，用于标识数据的物理归属。  </li>
+</ul>
+<p>其实表述的有点复杂了，简单的来说 <em>索引计算: SetIndex = (地址 / 64) % 64</em></p>
+<p><strong>4KB回环 &amp; 地址冲突</strong><br>基于上述物理映射逻辑，不难发现两种情况：</p>
+<ul>
+<li>单一连续数据队列长度超过 4KB 。</li>
+<li>多条连续数据首地址为 4KB 倍数。  </li>
+</ul>
+<p>上述两种情况将会导致数据竞争同一个 Set ，但是单一 Set 最大 Cache Line 数量为8。<br>当同一 Set 内竞争的并发流超过 8 路时，触发 LRU 算法强制踢出旧行，导致流水线停顿 (Stall)。<br>进而导致性能下降。</p>
+<h2 id="应对策略"><a href="#应对策略" class="headerlink" title="应对策略"></a>应对策略</h2><h3 id="内存布局准则-Layout-Rules"><a href="#内存布局准则-Layout-Rules" class="headerlink" title="内存布局准则 (Layout Rules)"></a>内存布局准则 (Layout Rules)</h3><p>其实在前置的内容中写到过关于显式内存布局的准则。这些准则的由来相当一部分的原因上就是源自此处的物理特性。<br>详细的设计不在此赘述。</p>
+<h3 id="16KB-准则"><a href="#16KB-准则" class="headerlink" title="16KB 准则"></a>16KB 准则</h3><p>基于上述小节可知，将单 Job 活跃数据量限制在 16KB (256 行)，每组 Set 可留出4个空位，进而有效缓冲 Set 竞争问题。</p>
+<h3 id="单流原则与多流处理"><a href="#单流原则与多流处理" class="headerlink" title="单流原则与多流处理"></a>单流原则与多流处理</h3><h4 id="单流设计"><a href="#单流设计" class="headerlink" title="单流设计"></a>单流设计</h4><p>每个 JOB 只对单一的组件（Component）进行处理。由于线性访问，且内存连续的机制以及内存墙的物理特性，可以有效的避免内存地址竞争。<br>单一 Component 的设计只需要遵循 Size 为64的因子即可。</p>
+<h4 id="多流设计"><a href="#多流设计" class="headerlink" title="多流设计"></a>多流设计</h4><p>实际场景往往复杂的多，单流的设计更多的只适用于教学或者简单场景。<br><strong>多组件在单一Job中操作：</strong><br>多流设计遵循原则：<em>多个 Component 之间综合也应该保持为 64 的因数设计大小</em><br>确保多个 Component 数据被预存器搬入L1缓存时，它们依旧可以填满物理内存空间而不产生越界与跨行。<br>他们可能是交替写入 Set 也有可能是顺序写入，但无论如何，依旧刚好可以对齐物理空间。<br>进而有效避免由不对称结构或者跨行导致的等一系列延申性能问题。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>在物理视角下 CPU 硬件层级不识别 C# 类型系统，也并没有要求指出所有的数据结构不能够跨越缓存行。<br>只是同样的数据计算量下，跨行或者非对齐结构，CPU需要更多的指令和额外的操作去完成。<br>其实也揭示了内存墙的特性之一：<strong><em>现代CPU在计算性能上已经算的足够快，大部分时间都是在等待数据从内存搬运进缓存</em></strong></p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          
+
+<div class="post-copyright">
+<ul>
+  <li class="post-copyright-author">
+      <strong>本文作者： </strong>Erriapus.
+  </li>
+  <li class="post-copyright-link">
+      <strong>本文链接：</strong>
+      <a href="https://sleipnir3.github.io/2026/03/17/L1%20Cache%20&%208-Way%20Set%20Associative/" title="L1 Cache &amp; 8-Way Set Associative">https://sleipnir3.github.io/2026/03/17/L1 Cache & 8-Way Set Associative/</a>
+  </li>
+  <li class="post-copyright-license">
+      <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/03/10/Double_BUffering/" rel="prev" title="基于Unity引擎的双缓冲机制与跨帧同步的理论">
+                  <i class="fa fa-angle-left"></i> 基于Unity引擎的双缓冲机制与跨帧同步的理论
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/03/17/DataSeparation_Query/" rel="next" title="数据分离与运行时查询">
+                  数据分离与运行时查询 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Erriapus.</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/mist/" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+  <div class="reading-progress-bar"></div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

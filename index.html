@@ -140,7 +140,7 @@
   <nav class="site-state">
       <div class="site-state-item site-state-posts">
         <a href="/archives/">
-          <span class="site-state-item-count">3</span>
+          <span class="site-state-item-count">5</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
@@ -158,6 +158,283 @@
     </div>
 
     <div class="main-inner index posts-expand">
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://sleipnir3.github.io/2026/03/17/DataSeparation_Query/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Erriapus.">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Cyberlex Ω - 环形世界">
+      <meta itemprop="description" content="关于Unity技术、架构深度思考">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content=" | Cyberlex Ω - 环形世界">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2026/03/17/DataSeparation_Query/" class="post-title-link" itemprop="url">数据分离与运行时查询</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-03-17 20:25:18" itemprop="dateCreated datePublished" datetime="2026-03-17T20:25:18+08:00">2026-03-17</time>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h1 id="数据分离与运行时查询"><a href="#数据分离与运行时查询" class="headerlink" title="数据分离与运行时查询"></a>数据分离与运行时查询</h1><h2 id="序"><a href="#序" class="headerlink" title="序"></a>序</h2><p>由于L1缓存弥足珍贵，故而我们在设计 Component 时往往又会回到OOP老生常谈的一个原则：高内聚，低耦合。<br>实际场景中一个 Entity 往往拥有多个 Component ，当然也不排除单一的存在。<br>所以本篇主旨就是关于 Component 的设计理念与运行时查询的原则。</p>
+<h2 id="数据分离-冷热隔离"><a href="#数据分离-冷热隔离" class="headerlink" title="数据分离 - 冷热隔离"></a>数据分离 - 冷热隔离</h2><h3 id="Component-与结构性突变的抉择"><a href="#Component-与结构性突变的抉择" class="headerlink" title="Component 与结构性突变的抉择"></a>Component 与结构性突变的抉择</h3><p>结构性突变是高性能并发中的红线，会产生幽灵数据，强制同步等一系列棘手的问题。<br>设计原则应该是 <strong>尽可能地稳定实体的 Components 来尽可能的减少结构性突变的发生。</strong>  </p>
+<blockquote>
+<p><em>单一 Entity 上应该有可满足需求的多个组件，每个组件需要复合设计标准且尽可能地内聚</em>  </p>
+</blockquote>
+<p>在初始化时一次性支付所有的开销，但在使用时就不要再去增删组件，而是通过内部标记来表示当前组件是否激活。<br>这是一个标准的<strong>空间换时间</strong>方案，想必读者一目了然。<br>关于结构性突变的内容请查阅相关Blog，在此不赘述。</p>
+<h3 id="单一Component-设计理念"><a href="#单一Component-设计理念" class="headerlink" title="单一Component 设计理念"></a>单一Component 设计理念</h3><p>如果一个Entity 确实只需要一个Component就能够表达，那么设计方案其实就相对的简单。<br>使用我们的自定义结构布局，结合位压缩算法，就可以使单一的 Component 足够小巧的同时也可以表达足够丰富的数据。<br>要点在于冷热分离，假设我们使用一个 ulong 类型的结构来表示。<br>我们需要将频繁处理的数据，例如 Position 和 Rotation 放在一起，并集中在低位内存中。<br>而将不经常处理的数据，例如标记位等数据，放置在高位中。做一个简单的冷热分离。</p>
+<blockquote>
+<p>在 CPU 层面，ulong（8字节）是内存访问的最小原子单位之一。所以无论怎么放这些数据，他们都会被加载进入缓存。<br>在物理层 Memory（存储）并没有什么区别，而在 ALU（计算）层由于数据高内聚会带来的指令优化，但在此不做过多讨论。</p>
+</blockquote>
+<h3 id="多-Component-复合-Entity-设计方案"><a href="#多-Component-复合-Entity-设计方案" class="headerlink" title="多 Component 复合 Entity 设计方案"></a>多 Component 复合 Entity 设计方案</h3><p>多组件复合的情况下会涉及到更多的设计考量。但在这里我们只讨论一下它的好处。<br><strong>数据吞吐量</strong><br>现实场景中，我们可能只是更改实体部分的属性，我们将这部分称之为热数据，它们总是频繁出入L级缓存。<br>所以分离数据为多个 Component 就可以降低无效数据从内存写入L1缓存，进而提高有效数据的吞吐量。  </p>
+<p><strong>举个例子</strong>：试想若有 X 个实体。拥有单一 Component 结构，大小为32字节。而其中16字节为需要频繁修改的热数据。<br>若单一数据结构下，每次都需要将32字节大小的结构写入缓存。<br>若使用多 Component 结构，拆分32字节为2个16字节的 Component 组合形式。<br>则除非全量更新，每次搬运的数据量则会减少一半。  </p>
+<blockquote>
+<p>实际上，即使是全量更新，在稳定的环境下（即不产生数据回环上限导致的地址冲突）多 Component 的设计方案，速度与单一结构基本可以持平。<br>只是需要更多的维护成本。但显然这不是CPU考虑的事情 (#`Д´)ﾉ</p>
+</blockquote>
+<h2 id="补充"><a href="#补充" class="headerlink" title="补充"></a>补充</h2><p>与直觉相反，Unity官方提供的方案中更加推荐使用Tag（结构性突变）。<br>对于上文的Bit标记位结构来说，无论修改了多少的数据，都需要将全部数据拉入缓存。   </p>
+<p>对比：</p>
+<ul>
+<li>使用 Tag (结构突变)：EntityQuery 在底层直接跳过不含该 Tag 的整个 Chunk。CPU 根本不碰那些没被冻结的实体内存。</li>
+<li>使用 Internal Flag：Job 必须把所有实体的内存都拉进 L1 缓存，然后在循环里用 if 或 math.select 挑出需要的。</li>
+</ul>
+<p>这一点没有绝对对错，按需设计即可。</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://sleipnir3.github.io/2026/03/17/L1%20Cache%20&%208-Way%20Set%20Associative/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Erriapus.">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Cyberlex Ω - 环形世界">
+      <meta itemprop="description" content="关于Unity技术、架构深度思考">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content=" | Cyberlex Ω - 环形世界">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2026/03/17/L1%20Cache%20&%208-Way%20Set%20Associative/" class="post-title-link" itemprop="url">L1 Cache & 8-Way Set Associative</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-03-17 20:25:18" itemprop="dateCreated datePublished" datetime="2026-03-17T20:25:18+08:00">2026-03-17</time>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h1 id="L1-Cache-amp-8-Way-Set-Associative"><a href="#L1-Cache-amp-8-Way-Set-Associative" class="headerlink" title="L1 Cache &amp; 8-Way Set Associative"></a>L1 Cache &amp; 8-Way Set Associative</h1><h2 id="序"><a href="#序" class="headerlink" title="序"></a>序</h2><p>一篇关于 <em>32KB L1d</em> 缓存架构下 <em>L1 Cache</em> 相关设计以及特性的探究笔记。不涉及专业课本知识。<br>解释了内存布局设计以及分批策略的缘由。  </p>
+<h2 id="物理结构-Physical-Sturct"><a href="#物理结构-Physical-Sturct" class="headerlink" title="物理结构 (Physical Sturct)"></a>物理结构 (Physical Sturct)</h2><h3 id="L1缓存的物理概念"><a href="#L1缓存的物理概念" class="headerlink" title="L1缓存的物理概念"></a>L1缓存的物理概念</h3><p>注意区分 <strong><em>L1缓存(L1 Cache)</em></strong> 与 <strong><em>缓存行(Cache Line)</em></strong> 的概念，它们完全是两码事，但是彼此之间相互构成。<br>在 <em>32KB L1d</em> 缓存架构下，物理层级被划分为 64 个组 (Sets)，每个组包含 8 个行(Ways/Lines)。</p>
+<p>上文所述的物理参数如下：</p>
+<ul>
+<li>L1 数据缓存容量: 32 KB (32,768 字节)。</li>
+<li>缓存行 (Cache Line): 64 字节 (最小存取单位)。</li>
+<li>总行数: 512 行 (32768 / 64)。</li>
+<li>组关联 (Associativity): 8-路 (8-Way)，每 8 行组成一个 Set (组)。</li>
+<li>组总数: 64 个 Sets (512 / 8)。</li>
+</ul>
+<p>通俗来说</p>
+<ul>
+<li>每 8 个bit组成了一个字节  </li>
+<li>64 个 8-bit 组成了一个 Cache Line   </li>
+<li>每 8 个 Cache Line 为一组，总计 64 组横向排列在一起，组成了 L1 Cache  </li>
+</ul>
+<p><em>此处缺少一张示意图</em></p>
+<h3 id="物理映射逻辑-Mapping-Logic-amp-4KB回环-amp-地址冲突"><a href="#物理映射逻辑-Mapping-Logic-amp-4KB回环-amp-地址冲突" class="headerlink" title="物理映射逻辑 (Mapping Logic) &amp; 4KB回环 &amp; 地址冲突"></a>物理映射逻辑 (Mapping Logic) &amp; 4KB回环 &amp; 地址冲突</h3><p><strong>Mapping Logic</strong><br>CPU预存器将数据从内存搬入L1缓存时，需要遵循以下规则：<br><strong>内存地址到缓存组的映射由地址位决定</strong></p>
+<ul>
+<li>Offset (6 bits): $Addr[5:0]$，决定缓存行内的字节偏移（0-63）。</li>
+<li>Index (6 bits): $Addr[11:6]$，决定所属组（0-63）。公式：$SetIndex = (Addr \gg 1) \ \&amp; \ 0x3F$。</li>
+<li>Tag (Remaining bits): 剩余高位地址，用于标识数据的物理归属。  </li>
+</ul>
+<p>其实表述的有点复杂了，简单的来说 <em>索引计算: SetIndex = (地址 / 64) % 64</em></p>
+<p><strong>4KB回环 &amp; 地址冲突</strong><br>基于上述物理映射逻辑，不难发现两种情况：</p>
+<ul>
+<li>单一连续数据队列长度超过 4KB 。</li>
+<li>多条连续数据首地址为 4KB 倍数。  </li>
+</ul>
+<p>上述两种情况将会导致数据竞争同一个 Set ，但是单一 Set 最大 Cache Line 数量为8。<br>当同一 Set 内竞争的并发流超过 8 路时，触发 LRU 算法强制踢出旧行，导致流水线停顿 (Stall)。<br>进而导致性能下降。</p>
+<h2 id="应对策略"><a href="#应对策略" class="headerlink" title="应对策略"></a>应对策略</h2><h3 id="内存布局准则-Layout-Rules"><a href="#内存布局准则-Layout-Rules" class="headerlink" title="内存布局准则 (Layout Rules)"></a>内存布局准则 (Layout Rules)</h3><p>其实在前置的内容中写到过关于显式内存布局的准则。这些准则的由来相当一部分的原因上就是源自此处的物理特性。<br>详细的设计不在此赘述。</p>
+<h3 id="16KB-准则"><a href="#16KB-准则" class="headerlink" title="16KB 准则"></a>16KB 准则</h3><p>基于上述小节可知，将单 Job 活跃数据量限制在 16KB (256 行)，每组 Set 可留出4个空位，进而有效缓冲 Set 竞争问题。</p>
+<h3 id="单流原则与多流处理"><a href="#单流原则与多流处理" class="headerlink" title="单流原则与多流处理"></a>单流原则与多流处理</h3><h4 id="单流设计"><a href="#单流设计" class="headerlink" title="单流设计"></a>单流设计</h4><p>每个 JOB 只对单一的组件（Component）进行处理。由于线性访问，且内存连续的机制以及内存墙的物理特性，可以有效的避免内存地址竞争。<br>单一 Component 的设计只需要遵循 Size 为64的因子即可。</p>
+<h4 id="多流设计"><a href="#多流设计" class="headerlink" title="多流设计"></a>多流设计</h4><p>实际场景往往复杂的多，单流的设计更多的只适用于教学或者简单场景。<br><strong>多组件在单一Job中操作：</strong><br>多流设计遵循原则：<em>多个 Component 之间综合也应该保持为 64 的因数设计大小</em><br>确保多个 Component 数据被预存器搬入L1缓存时，它们依旧可以填满物理内存空间而不产生越界与跨行。<br>他们可能是交替写入 Set 也有可能是顺序写入，但无论如何，依旧刚好可以对齐物理空间。<br>进而有效避免由不对称结构或者跨行导致的等一系列延申性能问题。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>在物理视角下 CPU 硬件层级不识别 C# 类型系统，也并没有要求指出所有的数据结构不能够跨越缓存行。<br>只是同样的数据计算量下，跨行或者非对齐结构，CPU需要更多的指令和额外的操作去完成。<br>其实也揭示了内存墙的特性之一：<strong><em>现代CPU在计算性能上已经算的足够快，大部分时间都是在等待数据从内存搬运进缓存</em></strong></p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="https://sleipnir3.github.io/2026/03/10/Double_BUffering/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Erriapus.">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Cyberlex Ω - 环形世界">
+      <meta itemprop="description" content="关于Unity技术、架构深度思考">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content=" | Cyberlex Ω - 环形世界">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2026/03/10/Double_BUffering/" class="post-title-link" itemprop="url">基于Unity引擎的双缓冲机制与跨帧同步的理论</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-03-10 00:00:00" itemprop="dateCreated datePublished" datetime="2026-03-10T00:00:00+08:00">2026-03-10</time>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <h1 id="基于Unity引擎的双缓冲机制与跨帧同步的理论"><a href="#基于Unity引擎的双缓冲机制与跨帧同步的理论" class="headerlink" title="基于Unity引擎的双缓冲机制与跨帧同步的理论"></a>基于Unity引擎的双缓冲机制与跨帧同步的理论</h1><h2 id="前导"><a href="#前导" class="headerlink" title="前导"></a>前导</h2><p>通俗的来说：<br>Unity架构下调用CPU完成数个特定串行函数的工作，被称为帧。<br>完成这一帧的耗时称之为帧时间。<br>最终我们所说的帧率就是限定的时间内（1s），CPU 完成了多少帧。  </p>
+<p>在Unity底层，每帧 CPU 要做的事情非常多，但是在顶层的MonoBehavior中，暴露的函数接口却非常的少。<br>在本篇中，我们重点关注 <strong><em>Update()</em></strong> 函数</p>
+<h2 id="跨帧内容分离"><a href="#跨帧内容分离" class="headerlink" title="跨帧内容分离"></a>跨帧内容分离</h2><p>通过上文我们知道，CPU每帧都在特定的周期中执行<em>Update</em>。<br>首先我们需要两个容器来储存内容，它们分别为上一帧的数据内容以及这一帧将要产生的数据容器。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">private NativeArray&lt;float&gt; _finalResultA;</span><br><span class="line">private NativeArray&lt;float&gt; _finalResultB;</span><br><span class="line">private bool _isWritingToA = true; </span><br></pre></td></tr></table></figure>
+<p>从设计上可以看到，两者的设计完全一样，所以我们只需要使用一个标志位<strong>isWritingToA</strong>判断,并且在结束时需要做一次反转，并不需要刻意区分。 </p>
+<p>当然了我们需要跳过第一帧的渲染，因为没有渲染内容的。由于过于简单，这里不再演示。<br>至此我们区分了本帧数据与上一帧数据的界限。在代码中表现为了read与write。<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">private void Update()</span><br><span class="line">&#123;  </span><br><span class="line">    var writeBuffer = _isWritingToA ? _finalResultA : _finalResultB;   </span><br><span class="line">    var readBuffer = _isWritingToA ? _finalResultB : _finalResultA;   </span><br><span class="line"></span><br><span class="line">    //渲染上一帧的数据</span><br><span class="line">    ...</span><br><span class="line"></span><br><span class="line">    //写入本帧中的逻辑</span><br><span class="line">    ...</span><br><span class="line">    _isWritingToA = !_isWritingToA;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<h3 id="物理事实"><a href="#物理事实" class="headerlink" title="物理事实"></a>物理事实</h3><p>无论怎么设计，CPU 完成当前 <em>Update</em> 任务的 Total Ms 并不会因为我们的设计而减少。<br>总任务量不会消失。<br>虽然在底层优化中，由于我们的读写分离设计，编译器以及系统可能会做出一些优化，但是此处可以忽略不计。  </p>
+<h2 id="串行视角下的设计理论"><a href="#串行视角下的设计理论" class="headerlink" title="串行视角下的设计理论"></a>串行视角下的设计理论</h2><p>观察上述代码，这个设计可谓是平平无奇，毫无特色。<br>借助Unity提供的 <code>IEnumerator</code> 可以让这个设计变得稍微有点意思。<br>方案非常简单，在类中加入一个 Mark 标记，借助 <code>IEnumerator</code> 的跨帧机制，可以将单帧压力分配到多帧中去。<br>最终根据 Mark 标记来一次性渲染结果。<br>简单的牺牲每帧的精确性，来换取流畅性方案。  </p>
+<blockquote>
+<p>这个设计在串行架构下本质就是非常鸡肋的设计。<br>又或者说，这是串行架构在面对重型密集任务时的天然缺陷。</p>
+</blockquote>
+<h2 id="并行视角下的设计理论-任务重叠机制"><a href="#并行视角下的设计理论-任务重叠机制" class="headerlink" title="并行视角下的设计理论 - 任务重叠机制"></a>并行视角下的设计理论 - 任务重叠机制</h2><p>在并行架构的设计下，这一套设计理念可以产生巨大的优势。<br>基于Unity本身的设计，在<code>Update</code>函数开头，我们需要放置一个同步点(Sync Point)，确保上一帧的并行任务完结，然后渲染数据。<br>但是我们可以将本帧中的操作交给并行核心去实现。CPU此时只需要下发一个并行指令即可。  </p>
+<p>让我们理一下概念逻辑：<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">graph TD</span><br><span class="line">    A[Update Start] --&gt; B(Sync Point: Wait for Last Job)</span><br><span class="line">    B --&gt; C[Render Last Frame Data]</span><br><span class="line">    C --&gt; D[Pack Current Frame Data]</span><br><span class="line">    D --&gt; E[Dispatch Current Job]</span><br><span class="line">    </span><br><span class="line">    E --&gt; F&#123;Task Overlap&#125;</span><br><span class="line">    </span><br><span class="line">    subgraph ParallelCore [并行核心]</span><br><span class="line">        F --&gt; G[Process Parallel Work]</span><br><span class="line">    end</span><br><span class="line">    </span><br><span class="line">    subgraph MainThread [主线程]</span><br><span class="line">        F --&gt; H[Other Business Logic]</span><br><span class="line">    end</span><br><span class="line">    </span><br><span class="line">    G --&gt; I[Next Frame Start]</span><br><span class="line">    H --&gt; I</span><br></pre></td></tr></table></figure></p>
+<p>基于此种设计实现任务重叠，从主线程 CPU 分发完并行任务开始到下一帧的Sync Point之前，主线程 CPU 将从业务逻辑中完全解放出来。  </p>
+<p>在理想的情况下，每帧中主线程 CPU 只需要收割与结算上一帧的数据和下发新一轮并行指令。</p>
+<h2 id="结尾"><a href="#结尾" class="headerlink" title="结尾"></a>结尾</h2><p>基于Job System，在测试环境中，主线程如果压力较小，会将已经分出去的Job任务抢占回来。<br>但是此时会产生额外的调度开销。</p>
+
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
 
     
 
@@ -221,20 +498,13 @@
 <blockquote>
 <p>在连续内存中，移除首位都是极其昂贵的操作。</p>
 </blockquote>
-<h3 id="二叉树探针"><a href="#二叉树探针" class="headerlink" title="二叉树探针"></a>二叉树探针</h3><p>在一个标准的完全二叉树结构中，使用如下方式可以获得任意Index节点的两个子节点或者是父节点。</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">// 获取节点的两个子节点</span><br><span class="line">int leftChild = (parentIdx &lt;&lt; 1) + 1;</span><br><span class="line">int rightChild = (parentIdx &lt;&lt; 1) + 2;</span><br><span class="line">// 获取节点的父节点</span><br><span class="line">int parentIdx = (childIdx - 1) &gt;&gt; 1;</span><br></pre></td></tr></table></figure>
-<p>但是要注意判空，有可能右节点是不存在的。</p>
-<h2 id="代码实现"><a href="#代码实现" class="headerlink" title="代码实现"></a>代码实现</h2><h3 id="出池队尾填充"><a href="#出池队尾填充" class="headerlink" title="出池队尾填充"></a>出池队尾填充</h3><p>在需求上我们需要拿到头部数据的同时，也不想支付昂贵的排序开销操作。</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">int minIndex = _freeHeap[0];</span><br><span class="line">int lastIdx = _freeHeap.Length - 1;</span><br><span class="line"></span><br><span class="line">_freeHeap[0] = _freeHeap[lastIdx];</span><br><span class="line">_freeHeap.RemoveAt(lastIdx);</span><br></pre></td></tr></table></figure>
-<p>我们拿出了首位的数据，同时将队尾的数据写入首位中，然后将队尾的数据弹出。<br>这样我们就避免了因为移除首位导致的内存断层，进而避免了触发 NativeList 的排序。<br>同时，我们也破坏了上述的合法堆的结构要求，整个堆变成了非法堆。<br>但是问题变得更好解决，对于 CPU 而言，完全二叉树排序是一个非常简单又轻松的工作。<br>我们的问题从 连续内存断层后的数据移动 变为了 将错乱的完全二叉树合法化 。<br>具体的实现我们在下文中探讨。</p>
-<h3 id="“重力索引”-修复破碎的非法堆"><a href="#“重力索引”-修复破碎的非法堆" class="headerlink" title="“重力索引” - 修复破碎的非法堆"></a>“重力索引” - 修复破碎的非法堆</h3><p>上文的操作中，我们已经知道，当前堆物理上是紧凑的，但是逻辑上是非法的。<br>在出池的修复逻辑下，问题的关键在于寻找子节点中的小值是否合法，即大于或等于父节点。  </p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">while (true)</span><br><span class="line">&#123;</span><br><span class="line">    int leftChild = (parentIdx &lt;&lt; 1) + 1;</span><br><span class="line">    int rightChild = (parentIdx &lt;&lt; 1) + 2;</span><br><span class="line">    if (leftChild &gt;= _freeHeap.Length) break;</span><br><span class="line">    //判断是否有右节点，并且右节点小于左节点。获取最小的子节点。</span><br><span class="line">    int smallestChild = (rightChild &lt; _freeHeap.Length &amp;&amp; _freeHeap[rightChild] &lt; _freeHeap[leftChild]) </span><br><span class="line">                        ? rightChild : leftChild;</span><br><span class="line"></span><br><span class="line">    if (_freeHeap[parentIdx] &lt;= _freeHeap[smallestChild]) break;</span><br><span class="line"></span><br><span class="line">    int temp = _freeHeap[parentIdx];</span><br><span class="line">    _freeHeap[parentIdx] = _freeHeap[smallestChild];</span><br><span class="line">    _freeHeap[smallestChild] = temp;</span><br><span class="line">    parentIdx = smallestChild;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-
+<h3 id="二叉树探针"><a href="#二叉树探针" class="headerlink" title="二叉树探针"></a>二叉树探针</h3><p>在一个标准的完全二叉树结构中，使用如下方式可以获得任意Index节点的两个子节点或者是父节点。<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">// 获取节点的两个子节点</span><br><span class="line">int leftChild = (parentIdx &lt;&lt; 1) + 1;</span><br><span class="line">int rightChild = (parentIdx &lt;&lt; 1) + 2;</span><br><span class="line">// 获取节点的父节点</span><br><span class="line">int parentIdx = (childIdx - 1) &gt;&gt; 1;</span><br></pre></td></tr></table></figure><br>但是要注意判空，有可能右节点是不存在的。</p>
+<h2 id="代码实现"><a href="#代码实现" class="headerlink" title="代码实现"></a>代码实现</h2><h3 id="出池队尾填充"><a href="#出池队尾填充" class="headerlink" title="出池队尾填充"></a>出池队尾填充</h3><p>在需求上我们需要拿到头部数据的同时，也不想支付昂贵的排序开销操作。<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">int minIndex = _freeHeap[0];</span><br><span class="line">int lastIdx = _freeHeap.Length - 1;</span><br><span class="line"></span><br><span class="line">_freeHeap[0] = _freeHeap[lastIdx];</span><br><span class="line">_freeHeap.RemoveAt(lastIdx);</span><br></pre></td></tr></table></figure><br>我们拿出了首位的数据，同时将队尾的数据写入首位中，然后将队尾的数据弹出。<br>这样我们就避免了因为移除首位导致的内存断层，进而避免了触发 NativeList 的排序。<br>同时，我们也破坏了上述的合法堆的结构要求，整个堆变成了非法堆。<br>但是问题变得更好解决，对于 CPU 而言，完全二叉树排序是一个非常简单又轻松的工作。<br>我们的问题从 连续内存断层后的数据移动 变为了 将错乱的完全二叉树合法化 。<br>具体的实现我们在下文中探讨。</p>
+<h3 id="“重力索引”-修复破碎的非法堆"><a href="#“重力索引”-修复破碎的非法堆" class="headerlink" title="“重力索引” - 修复破碎的非法堆"></a>“重力索引” - 修复破碎的非法堆</h3><p>上文的操作中，我们已经知道，当前堆物理上是紧凑的，但是逻辑上是非法的。<br>在出池的修复逻辑下，问题的关键在于寻找子节点中的小值是否合法，即大于或等于父节点。<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">while (true)</span><br><span class="line">&#123;</span><br><span class="line">    int leftChild = (parentIdx &lt;&lt; 1) + 1;</span><br><span class="line">    int rightChild = (parentIdx &lt;&lt; 1) + 2;</span><br><span class="line">    if (leftChild &gt;= _freeHeap.Length) break;</span><br><span class="line">    //判断是否有右节点，并且右节点小于左节点。获取最小的子节点。</span><br><span class="line">    int smallestChild = (rightChild &lt; _freeHeap.Length &amp;&amp; _freeHeap[rightChild] &lt; _freeHeap[leftChild]) </span><br><span class="line">                        ? rightChild : leftChild;</span><br><span class="line"></span><br><span class="line">    if (_freeHeap[parentIdx] &lt;= _freeHeap[smallestChild]) break;</span><br><span class="line"></span><br><span class="line">    int temp = _freeHeap[parentIdx];</span><br><span class="line">    _freeHeap[parentIdx] = _freeHeap[smallestChild];</span><br><span class="line">    _freeHeap[smallestChild] = temp;</span><br><span class="line">    parentIdx = smallestChild;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
 <p>数学复杂度公式 (The Computational Bound)<br>对于一个拥有 $N$ 个元素的完全二叉树：</p>
 <ul>
 <li>最大交换次数 ($H$)：$\lfloor \log_2(N) \rfloor$</li>
-<li>对于 $N &#x3D; 1024$：<ul>
+<li>对于 $N = 1024$：<ul>
 <li>树的高度为 10 层。</li>
 <li>每层工作量：需要进行 2 次比较（子节点互比、父节点与最小子节点比）和 1 次交换。</li>
 <li>结论：即使最极端的最大索引，最多也只需要 20 次比较 和 10次交换。</li>
@@ -242,115 +512,17 @@
 </li>
 </ul>
 <hr>
-<p>入池的逻辑与出池基本类似，将数据加入队尾，同时通过算法恢复堆的合法结构。</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">_freeHeap.Add(index);</span><br><span class="line">int childIdx = _freeHeap.Length - 1;</span><br><span class="line"></span><br><span class="line">while (childIdx &gt; 0)</span><br><span class="line">&#123;</span><br><span class="line">    int parentIdx = (childIdx - 1) &gt;&gt; 1;</span><br><span class="line">    if (_freeHeap[childIdx] &gt;= _freeHeap[parentIdx]) break;</span><br><span class="line"></span><br><span class="line">    // 交换：小的索引向上浮动</span><br><span class="line">    int temp = _freeHeap[childIdx];</span><br><span class="line">    _freeHeap[childIdx] = _freeHeap[parentIdx];</span><br><span class="line">    _freeHeap[parentIdx] = temp;</span><br><span class="line">    childIdx = parentIdx;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>数学复杂度公式 (The Computational Bound)<br>对于一个拥有 $N$ 个元素的完全二叉树：</p>
+<p>入池的逻辑与出池基本类似，将数据加入队尾，同时通过算法恢复堆的合法结构。<br><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">_freeHeap.Add(index);</span><br><span class="line">int childIdx = _freeHeap.Length - 1;</span><br><span class="line"></span><br><span class="line">while (childIdx &gt; 0)</span><br><span class="line">&#123;</span><br><span class="line">    int parentIdx = (childIdx - 1) &gt;&gt; 1;</span><br><span class="line">    if (_freeHeap[childIdx] &gt;= _freeHeap[parentIdx]) break;</span><br><span class="line"></span><br><span class="line">    // 交换：小的索引向上浮动</span><br><span class="line">    int temp = _freeHeap[childIdx];</span><br><span class="line">    _freeHeap[childIdx] = _freeHeap[parentIdx];</span><br><span class="line">    _freeHeap[parentIdx] = temp;</span><br><span class="line">    childIdx = parentIdx;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure><br>数学复杂度公式 (The Computational Bound)<br>对于一个拥有 $N$ 个元素的完全二叉树：</p>
 <ul>
 <li>最大交换次数 ($H$)：$\lceil \log_2(N + 1) \rceil - 1$</li>
-<li>对于 $N &#x3D; 1024$：<ul>
-<li>$2^{10} &#x3D; 1024$，所以最大高度约为 10 层。</li>
+<li>对于 $N = 1024$：<ul>
+<li>$2^{10} = 1024$，所以最大高度约为 10 层。</li>
 <li>结论：即使归还的是最末尾的一个最小索引，它最多也只需要 10 次 比较和 10 次 交换就能到达堆顶。</li>
 </ul>
 </li>
 </ul>
 <h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>以上，无论我们在出池或者入池时，都保障了堆的合法性。<br>不仅获取了头部数据，也避免了因为连续内存断层导致的庞大的性能开销。<br>至于初始化部分和运行时逻辑健壮性在此不过多讨论，依据具体需求实现即可。  </p>
 <h2 id="尾记"><a href="#尾记" class="headerlink" title="尾记"></a>尾记</h2><p>至于为什么命名”重力索引“？我们以出池为例。<br>如果读者尝试推导这个计算过程就不难发现，这个算法的流程其实就是将末尾的数值放在二叉树顶部，然后逐步将其”踢回“属于它的位置。<br>就像一个石头从山峰上滚下去。</p>
-
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="https://sleipnir3.github.io/2026/03/02/Double_Buffering/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="Erriapus.">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Cyberlex Ω - 环形世界">
-      <meta itemprop="description" content="关于Unity技术、架构深度思考">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content=" | Cyberlex Ω - 环形世界">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2026/03/02/Double_Buffering/" class="post-title-link" itemprop="url">Unity下的双缓冲机制与跨帧同步的理论</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">发表于</span>
-
-      <time title="创建时间：2026-03-02 00:00:00" itemprop="dateCreated datePublished" datetime="2026-03-02T00:00:00+08:00">2026-03-02</time>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <blockquote>
-<p><strong>Date</strong>: 2026-03-01<br><strong>Author</strong>: Errial<br><strong>Tags</strong>: #DoubleBuffering</p>
-</blockquote>
-<h2 id="跨帧内容分离"><a href="#跨帧内容分离" class="headerlink" title="跨帧内容分离"></a>跨帧内容分离</h2><p>首先我们需要两个容器来储存内容，它们分别为上一帧的数据以及这一帧将要产生的数据。</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">private NativeArray&lt;float&gt; _finalResultA;</span><br><span class="line">private NativeArray&lt;float&gt; _finalResultB;</span><br><span class="line">private bool _isWritingToA = true; </span><br></pre></td></tr></table></figure>
-<p>从设计上可以看到，两者的设计完全一样，所以我们只需要使用一个标志位<strong>isWritingToA</strong>判断,并且在结束时需要做一次反转，并不需要刻意区分。 </p>
-<p>当然了我们需要跳过第一帧，因为没有可以操作的内容。由于过于简单，这里不再演示。</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">private void Update()</span><br><span class="line">&#123;  </span><br><span class="line">    var writeBuffer = _isWritingToA ? _finalResultA : _finalResultB;   </span><br><span class="line">    var readBuffer = _isWritingToA ? _finalResultB : _finalResultA;   </span><br><span class="line"></span><br><span class="line">    ...</span><br><span class="line">    //处理readBuffer中上一帧已经就绪的数据。</span><br><span class="line">    ...</span><br><span class="line">    //update中需要做的其他任何事情。</span><br><span class="line">    ...</span><br><span class="line">    //将本帧中的数据写入writeBuffer。</span><br><span class="line">    ...</span><br><span class="line"></span><br><span class="line">    //反转标志位</span><br><span class="line">    _isWritingToA = !_isWritingToA;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>至此我们区分了本帧数据与上一帧数据的界限。虽然看起来他们依旧在同一个update中。</p>
-<h2 id="理论设计"><a href="#理论设计" class="headerlink" title="理论设计"></a>理论设计</h2><p>从无论怎么设计，CPU完成任务的总耗时并不会因为我们的设计而减少。<br>总任务量不会消失，只是分到了下一帧当中。<br>虽然在底层优化中，由于我们的读写分离设计，编译器以及系统可能会做出一些优化，但是此处可以忽略不计。  </p>
-<h2 id="并行视角下的设计理论-任务重叠机制"><a href="#并行视角下的设计理论-任务重叠机制" class="headerlink" title="并行视角下的设计理论 - 任务重叠机制"></a>并行视角下的设计理论 - 任务重叠机制</h2><p>在并行技术的支持下，这一套设计理念可以产生巨大的优势。<br>由于我们之前的设计区分了读写边界，那么在并行逻辑下就可以实现所谓的任务重叠。<br>思路如下：我们只需要将上一帧的写操作改为并行逻辑即可。<br>在上一帧的并行指令调度发出后，直到在当前帧的读逻辑完成前的这段时间里，读写任务在时间上就会产生一定程度的重叠。  </p>
-<blockquote>
-<p>也许你会问，如果我的写操作依赖上一帧的数据怎么办？<br>答案很简单，在写的并行指令调度发出前，我们有一个强制的Sync Point，上一帧的数据在此时已经准备好了，因为他们在同一个update中是串行的。</p>
-</blockquote>
-<p>让我们简单理一下逻辑：  </p>
-<ul>
-<li>Update的生命周期被执行。</li>
-<li>主线程向并行线程询问上一帧数据是否计算完毕并强制等待上一帧启动的并行逻辑结束。</li>
-<li>主线程cpu拿到上一帧的结果并执行读的操作。</li>
-<li>上一帧数据处理完毕。</li>
-<li>准备本帧中的写操作。</li>
-<li>下达调度指令让并行核心去执行。</li>
-<li>处理其他的必须流程后，进入后续的生命周期。</li>
-</ul>
-<p>基于此种设计实现任务重叠，在下一帧的Sync Point之前，主线程cpu的并不会因为过量的操作而拖慢当前帧时间。<br>在理想的情况下，即每次CPU询问并行线程时，任务都已经完成。每个Update中的CPU任务只需要收割上一帧的数据和下发新一轮并行指令。</p>
-<p>如果是基于Job System。在测试环境中，主线程如果压力较小，甚至会将发布给Job worker的任务再调度回来自己完成。<br>但是此时会产生额外的调度开销。<br><em>这是隐形的性能陷阱，我们在后续的博客中再讨论这一点。</em></p>
-<h2 id="串行视角下的设计理论"><a href="#串行视角下的设计理论" class="headerlink" title="串行视角下的设计理论"></a>串行视角下的设计理论</h2><p>上述代码中为了方便演示，我们只跨越了一帧，实际上对于非敏感的场景，我们可以根据需求跨越更多的帧，<strong>将一帧中cpu的压力分布到多帧当中</strong>，进而保障帧率与视觉上流畅。<br>借助Unity提供的 <code>IEnumerator</code> 也可以很便捷的实现这一点。想必大多数的Unity开发者都明白这一点，不再多余强调。<br>而与之俱来的问题是随着跨越的帧数增加，最终的同步将会出现更复杂的情况。也就是我们常说的协程与回调地狱。同时现有的很多框架都会针对这一点做优化和处理。</p>
-<p>由于串行逻辑不是我们讨论的重点，所以此处只是抛砖引玉。</p>
 
       
     </div>
@@ -423,7 +595,7 @@
 <p><strong>Date</strong>: 2026-03-01<br><strong>Author</strong>: Errial<br><strong>Tags</strong>: #UnityDOTS #HighPerformance #Branchless #16KB-L1  </p>
 </blockquote>
 <h2 id="序"><a href="#序" class="headerlink" title="序"></a>序</h2><p>最近在设计高性能计算时遇到了性能需求，需要尽可能少的产生分支预测。<br>虽然函数库 <em>Unity.Mathematics</em>，其内部提供了<em>math.select</em>等相关高性能计算的API接口。<br>问题在于这些API即使反编译看起来也很晦涩难懂，所以自己实现了一版的门控逻辑。</p>
-<h2 id="一、-基本逻辑与实现"><a href="#一、-基本逻辑与实现" class="headerlink" title="一、 基本逻辑与实现"></a>一、 基本逻辑与实现</h2><p><code> uint gate = (uint)(((long)rawValue - (long)(mask + 1)) &gt;&gt; 63);</code><br>是的，代码只有一行。其实非常的简单，但是涉及到的知识点较多，我们逐一分析。</p>
+<h2 id="一、-基本逻辑与实现"><a href="#一、-基本逻辑与实现" class="headerlink" title="一、 基本逻辑与实现"></a>一、 基本逻辑与实现</h2><p><code>uint gate = (uint)(((long)rawValue - (long)(mask + 1)) &gt;&gt; 63);</code><br>是的，代码只有一行。其实非常的简单，但是涉及到的知识点较多，我们逐一分析。</p>
 <h4 id="基本原理与mask-1-？"><a href="#基本原理与mask-1-？" class="headerlink" title="基本原理与mask + 1 ？"></a>基本原理与mask + 1 ？</h4><p><em>rawValue</em>是传入的原始值，<em>Mask</em>是标准模。理论上来说如果说一个数值大于<em>Mask</em>来说的话即非法。<br>所以方案就跃然纸上，使得两者相减，必然会获得三个数学结果<br><strong>大于0，小于0，等于0</strong>。<br><code>mask + 1</code>的意义就在于是否需要设计包含0的情况，因为0在shift后会产生“关门”的结果。<br>这里我们需要包含0，故而将mask扩大1，使得rawValue与mask相等时也会产生负数。</p>
 <h4 id="逻辑运算与计算运算以及掩码扩散机制"><a href="#逻辑运算与计算运算以及掩码扩散机制" class="headerlink" title="逻辑运算与计算运算以及掩码扩散机制"></a>逻辑运算与计算运算以及掩码扩散机制</h4><p>注意，笔者在进行算数相减前先做了一次类型转换，强制转为了<strong>long</strong>。注意，这是<strong>必要的</strong>。<br>显而易见，如果原类型是无符号类型，我们是无法获得负数的，此时执行的是纯粹的逻辑运算。<br>而如果是有符号类型，对于存在符号位的情况下，会进行运算计算，继而产生我们所说的掩码扩散机制。</p>
 <p>将结果向右移<code>sizeof(type) - 1</code>位数。<br>如果读者的计算机基础尚可的话，就会明白，此时得到的结果如下:</p>
@@ -432,7 +604,7 @@
 <li>预期类型2：0x0000….0000</li>
 </ul>
 <h4 id="门控的实现"><a href="#门控的实现" class="headerlink" title="门控的实现"></a>门控的实现</h4><p>通过上面的计算，我们得到了一个有符号类型的二进制数<code>effectiveMask</code>，全为1或者全为0。此时的逻辑已经接近于<em>bool</em>类型了。<br>然后在后续的计算中，就可以使rawValue &amp; effectiveMask。来控制写入是否生效。</p>
-<h2 id="二、-双向选择网关-The-Select-MUX-Gate"><a href="#二、-双向选择网关-The-Select-MUX-Gate" class="headerlink" title="二、 双向选择网关 (The Select&#x2F;MUX Gate)"></a>二、 双向选择网关 (The Select&#x2F;MUX Gate)</h2><p>基于上述的基本理论，我们可以利用我们的计算原型<code>gate</code>做更多的事情。</p>
+<h2 id="二、-双向选择网关-The-Select-MUX-Gate"><a href="#二、-双向选择网关-The-Select-MUX-Gate" class="headerlink" title="二、 双向选择网关 (The Select/MUX Gate)"></a>二、 双向选择网关 (The Select/MUX Gate)</h2><p>基于上述的基本理论，我们可以利用我们的计算原型<code>gate</code>做更多的事情。</p>
 <ul>
 <li>代码实现：<code>uint result = (A &amp; gate) | (B &amp; ~gate);</code></li>
 <li>物理解析：  <ul>
