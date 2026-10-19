@@ -1,12 +1,14 @@
 ## Development
 
-When starting the dev server, use background mode:
+Use npm for all package management and scripts. Do not introduce other package managers (pnpm, yarn, bun).
+
+Start the dev server in the background so it doesn't block the session, e.g.:
 
 ```
-astro dev --background
+npm run dev &
 ```
 
-Manage the background server with `astro dev stop`, `astro dev status`, and `astro dev logs`.
+Stop it by killing the background process when done.
 
 ## Documentation
 
