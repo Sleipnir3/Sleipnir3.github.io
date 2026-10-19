@@ -2,13 +2,15 @@
 
 Use npm for all package management and scripts. Do not introduce other package managers (pnpm, yarn, bun).
 
-Start the dev server in the background so it doesn't block the session, e.g.:
+When starting the dev server, use background mode:
 
 ```
-npm run dev &
+npx astro dev --background
 ```
 
-Stop it by killing the background process when done.
+Manage the background server with `npx astro dev stop`, `npx astro dev status`, and `npx astro dev logs`.
+
+Common scripts: `npm run new "标题"` (create draft), `npm run publish "说明"` (commit & push).
 
 ## Documentation
 
