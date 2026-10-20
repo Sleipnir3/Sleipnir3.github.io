@@ -26,9 +26,11 @@
 
 ## 写作
 
-1. `npm run new "文章标题"` 创建草稿（`draft: true`，仅本地可见）
-2. `npm run dev` 边写边预览；发布前填写 `description` 并移除 `draft: true`
+1. `npm run new "文章标题"` 创建草稿（`draft: true`，仅本地可见，自带文章骨架模板）
+2. `npx astro dev` 边写边预览；发布前填写 `description` 并移除 `draft: true`
 3. `npm run publish "说明"` 推送上线
+
+完整的写作流程与语法速查（目录、代码块文件名/高亮、提示块、图片等）见 [docs/WRITING.md](docs/WRITING.md)。
 
 文章位于 `src/content/posts/`，支持 Markdown / MDX。站点配置（标题、作者、社交链接等）在 `astro-paper.config.ts`。
 

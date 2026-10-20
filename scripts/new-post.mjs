@@ -37,9 +37,30 @@ tags:
 description: ""
 ---
 
+## Table of contents
+
+## 背景
+
+<!-- 为什么写这篇？遇到了什么问题？ -->
+
+## 正文
+
+\`\`\`csharp file="Example.cs"
+var x = 1; // [!code highlight]
+\`\`\`
+
+> [!note]
+> 需要强调的补充说明可以放在提示块里。
+
+<!-- 上面是代码块和提示块示例，发布前替换或删除。更多语法见 docs/WRITING.md -->
+
+## 总结
+
+<!-- 读者看完应该带走什么？ -->
 `;
 
 writeFileSync(filePath, content);
 console.log(`✓ 已创建 ${filePath}`);
-console.log(`  运行 npm run dev 后在 http://localhost:4321/posts/${slug}/ 预览`);
+console.log(`  运行 npx astro dev 后在 http://localhost:4321/posts/${slug}/ 预览`);
+console.log(`  写作指南与语法速查见 docs/WRITING.md`);
 console.log(`  发布前记得填写 description 并移除 draft: true`);
