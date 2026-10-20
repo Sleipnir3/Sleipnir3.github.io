@@ -4,6 +4,9 @@
 
 ## 写作流程
 
+> 💡 本地开发时也可以用页面底部工具栏的 **✏️ 写作助手**：输入标题回车即创建草稿，
+> 自动唤回 VS Code 打开新文件，并列出所有文章的草稿/发布状态（见下文"本地工具栏"）。
+
 ```bash
 # 1. 新建草稿（想到选题就先占坑，草稿仅本地可见，零成本）
 npm run new "文章标题"
@@ -100,3 +103,15 @@ var writeBuffer = _isWritingToA ? _bufferA : _bufferB; // [!code highlight]
 - `npm run build`：类型检查 + 构建，frontmatter 缺字段会在这里报错
 - 预览 404：确认 `draft` 已删除且 `pubDatetime` 不是未来时间
 - 部署：`npm run publish` 后由 GitHub Actions 自动构建，几分钟后生效
+
+## 本地工具栏（写作助手）
+
+`npx astro dev` 启动后，页面底部工具栏会出现 **✏️** 图标（仅本地，线上无）：
+
+- **新建文章**：输入标题回车 → 创建草稿 → 自动唤回 VS Code 打开新文件
+  （浏览器首次会询问"是否允许打开 VS Code"，允许一次后无缝）
+- **文章列表**：所有文章的 草稿/已发布 状态、缺失 `description` 的警告、预览直达链接
+- **删除草稿**：草稿行有"删除"按钮（仅草稿可删，已发布文章不显示；删除需确认，不可恢复）
+
+实现位于 `src/integrations/writing-tools/`，API 端点 `/_writing/*` 只挂在 dev server 上，
+不会进入线上构建产物。CLI（`npm run new`）与工具栏共用同一套建文逻辑（`scripts/lib/create-post.mjs`）。

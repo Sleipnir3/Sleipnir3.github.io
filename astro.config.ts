@@ -17,6 +17,7 @@ import {
   transformerNotationWordHighlight,
 } from "@shikijs/transformers";
 import { transformerFileName } from "./src/utils/transformers/fileName";
+import writingTools from "./src/integrations/writing-tools/index.js";
 import config from "./astro-paper.config";
 
 export default defineConfig({
@@ -27,6 +28,7 @@ export default defineConfig({
       filter: page =>
         config.features?.showArchives !== false || !page.endsWith("/archives/"),
     }),
+    writingTools(),
   ],
   i18n: {
     locales: ["zh-CN"],
