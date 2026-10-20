@@ -26,9 +26,10 @@
 
 ## 写作
 
-1. `npm run new "文章标题"` 创建草稿（`draft: true`，仅本地可见，自带文章骨架模板）
-2. `npx astro dev` 边写边预览；发布前填写 `description` 并移除 `draft: true`
-3. `npm run publish "说明"` 推送上线
+1. `npx astro dev` 启动开发服务器
+2. 新建草稿：点页面底部工具栏的 **✏️** 输入标题回车（自动创建并打开文件），或 `npm run new "文章标题"`
+3. 边写边预览；发布前填写 `description` 并移除 `draft: true`
+4. `npm run publish "说明"` 推送上线
 
 完整的写作流程与语法速查（目录、代码块文件名/高亮、提示块、图片等）见 [docs/WRITING.md](docs/WRITING.md)。
 
