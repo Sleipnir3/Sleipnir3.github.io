@@ -1,6 +1,8 @@
 ---
 title: L1 Cache & 8-Way Set Associative
 pubDatetime: 2026-03-17T00:00:00+08:00
+category: ""
+order: 0
 tags:
   - 缓存
   - 性能敏感

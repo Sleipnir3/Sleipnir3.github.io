@@ -28,6 +28,8 @@ export function buildPostContent(title) {
 title: ${title}
 pubDatetime: ${nowDatetime()}
 draft: true
+category: ""
+order: 0
 tags:
   - others
 description: ""

@@ -1,6 +1,8 @@
 ---
 title: 基于位运算的无分支门控注入与变体探究
 pubDatetime: 2026-03-01T00:00:00+08:00
+category: ""
+order: 0
 tags:
   - UnityDOTS
   - HighPerformance

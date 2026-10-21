@@ -15,6 +15,11 @@ const posts = defineCollection({
       title: z.string(),
       featured: z.boolean().optional(),
       draft: z.boolean().optional(),
+      category: z
+        .string()
+        .default("未分类")
+        .transform(v => (v?.trim() ? v.trim() : "未分类")),
+      order: z.number().int().default(0),
       tags: z.array(z.string()).default(["others"]),
       ogImage: image().or(z.string()).optional(),
       description: z.string(),
