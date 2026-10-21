@@ -54,21 +54,6 @@ const homePath = getRelativeLocaleUrl(locale, "");
 
       <p>{config.site.description}</p>
       <p class="mt-2">
-        这里收录关于 Unity、ECS 架构与高性能计算的技术笔记。可以按{" "}
-        <LinkButton
-          class="hover:text-accent underline decoration-dashed underline-offset-4"
-          href={getRelativeLocaleUrl(locale, "categories")}
-        >
-          分类
-        </LinkButton>{" "}
-        浏览主题，或查看{" "}
-        <LinkButton
-          class="hover:text-accent underline decoration-dashed underline-offset-4"
-          href={getRelativeLocaleUrl(locale, "posts")}
-        >
-          全部文章
-        </LinkButton>
-        。
       </p>
       {
         socials.length > 0 && (

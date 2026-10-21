@@ -4,7 +4,7 @@ export default defineAstroPaperConfig({
   site: {
     url: "https://sleipnir3.github.io/",
     title: "Cyberlex Ω - 环形世界",
-    description: "探索环形世界的边界：关于 Unity 技术与架构的深度思考",
+    description: "“君子如珩，羽衣昱耀。”",
     author: "Erriapus.",
     profile: "https://sleipnir3.github.io/",
     ogImage: "default-og.jpg",
