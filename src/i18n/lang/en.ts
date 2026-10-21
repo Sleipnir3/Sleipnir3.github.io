@@ -4,6 +4,7 @@ export default {
   nav: {
     home: "Home",
     posts: "Posts",
+    categories: "Categories",
     tags: "Tags",
     about: "About",
     archives: "Archives",
@@ -38,6 +39,12 @@ export default {
     allRightsReserved: "All rights reserved.",
   },
   pages: {
+    categoryTitle: "Category",
+    categoryDesc: "All the articles in the category",
+
+    categoriesTitle: "Categories",
+    categoriesDesc: "Browse all articles by category.",
+
     tagTitle: "Tag",
     tagDesc: "All the articles with the tag",
 

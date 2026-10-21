@@ -1,8 +1,11 @@
 ---
 import type { CollectionEntry } from "astro:content";
+import { getRelativeLocaleUrl } from "astro:i18n";
 import { getPostUrl } from "@/utils/getPostPaths";
 import { toTransitionName } from "@/utils/toTransitionName";
+import { categoryToSlug } from "@/utils/categorySlug";
 import Datetime from "./Datetime.astro";
+import config from "@/config";
 
 type Props = {
   variant?: "h2" | "h3";
@@ -10,7 +13,9 @@ type Props = {
 
 const { variant: Heading = "h2", id, data, filePath } = Astro.props;
 
-const { title, description, ...props } = data;
+const { title, description, category, ...props } = data;
+
+const locale = Astro.currentLocale ?? config.site.lang;
 ---
 
 <li class="my-6">
@@ -26,6 +31,14 @@ const { title, description, ...props } = data;
       {title}
     </Heading>
   </a>
-  <Datetime {...props} />
+  <div class="flex items-center gap-2">
+    <Datetime {...props} />
+    <a
+      href={getRelativeLocaleUrl(locale, `categories/${categoryToSlug(category)}/`)}
+      class="border-border text-muted-foreground hover:text-accent hover:border-accent rounded border px-1.5 py-0.5 text-xs"
+    >
+      {category}
+    </a>
+  </div>
   <p>{description}</p>
 </li>

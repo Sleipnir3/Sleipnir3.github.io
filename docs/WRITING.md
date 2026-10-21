@@ -5,9 +5,12 @@
 ## 写作流程
 
 ```bash
-# 1. 启动开发服务器（写作期间一直开着即可，停止用 npx astro dev stop）
-npx astro dev --background
+# 1. 启动开发服务器（写作期间一直开着即可，停止用 npm run dev:stop）
+npm run dev:bg
 ```
+
+> 本机 IPv6 环回损坏，dev 脚本已固定 `--host 127.0.0.1`，
+> 浏览器请访问 http://127.0.0.1:4321/ （不要裸用 npx astro dev）。
 
 ```bash
 # 2. 新建草稿（两种方式任选）
@@ -45,7 +48,7 @@ npm run publish "新增文章：文章标题"
 | `tags`         |      | 标签数组，**先从已有标签里选**，避免同义标签分裂 |
 | `draft`        |      | `true` 时仅本地可见；发布前删除                  |
 | `category`     |      | 文章分类，留空或省略时默认为「未分类」           |
-| `order`        |      | 分类内排序序号，整数，默认为 `0`                 |
+| `order`        |      | 分类内排序序号（小的在前），整数，默认为 `0`     |
 | `featured`     |      | `true` 时进入首页"精选"                          |
 | `modDatetime`  |      | 修改旧文章时手动更新为当前时间                   |
 | `ogImage`      |      | 自定义分享图，默认自动生成                       |
@@ -102,6 +105,13 @@ var writeBuffer = _isWritingToA ? _bufferA : _bufferB; // [!code highlight]
 
 `## Table of contents` 生成的目录默认折叠，无需额外操作。
 
+## 分类体系
+
+- 文章通过 frontmatter 的 `category` 字段归类，留空默认为「未分类」
+- 分类清单**自由收集**：写了什么分类就有什么分类，注意避免同义分类分裂（先复用已有分类名）
+- 分类浏览页：`/categories`（索引）与 `/categories/[slug]`（详情，按 `order` 升序、同序号按发布时间新文在前）
+- **新增分类时**：在 `src/utils/categorySlug.ts` 的 `CATEGORY_SLUGS` 表中登记「分类名 → 英文 slug」，否则分类 URL 会使用中文原名（会被百分号编码）
+
 ## 维护旧文章
 
 1. 直接编辑 `src/content/posts/` 下的文件
@@ -116,7 +126,7 @@ var writeBuffer = _isWritingToA ? _bufferA : _bufferB; // [!code highlight]
 
 ## 本地工具栏（写作助手）
 
-`npx astro dev` 启动后，页面底部工具栏会出现 **✏️** 图标（仅本地，线上无）：
+`npm run dev:bg` 启动后，页面底部工具栏会出现 **✏️** 图标（仅本地，线上无）：
 
 - **新建文章**：输入标题回车 → 创建草稿 → 自动唤回 VS Code 打开新文件
   （浏览器首次会询问"是否允许打开 VS Code"，允许一次后无缝）

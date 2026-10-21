@@ -5,10 +5,12 @@ Use npm for all package management and scripts. Do not introduce other package m
 When starting the dev server, use background mode:
 
 ```
-npx astro dev --background
+npm run dev:bg
 ```
 
-Manage the background server with `npx astro dev stop`, `npx astro dev status`, and `npx astro dev logs`.
+Manage the background server with `npm run dev:stop`, `npm run dev:status`, and `npm run dev:logs`.
+
+Note: `--host 127.0.0.1` is required on this machine (IPv6 loopback is broken); the dev scripts already include it. Use http://127.0.0.1:4321/ to browse.
 
 Common scripts: `npm run new "标题"` (create draft), `npm run publish "说明"` (commit & push).
 

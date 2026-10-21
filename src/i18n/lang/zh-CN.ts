@@ -4,6 +4,7 @@ export default {
   nav: {
     home: "首页",
     posts: "文章",
+    categories: "分类",
     tags: "标签",
     about: "关于",
     archives: "归档",
@@ -38,6 +39,12 @@ export default {
     allRightsReserved: "保留所有权利。",
   },
   pages: {
+    categoryTitle: "分类",
+    categoryDesc: "该分类下的所有文章",
+
+    categoriesTitle: "分类",
+    categoriesDesc: "按分类浏览所有文章",
+
     tagTitle: "标签",
     tagDesc: "包含该标签的所有文章",
 
